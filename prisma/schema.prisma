@@ -1,0 +1,271 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  apiKeys      ApiKey[]
+  observations Observation[]
+  scores       Score[]
+  prompts      Prompt[]
+  ingestEvents IngestEvent[]
+  datasets     Dataset[]
+  members      ProjectMember[]
+}
+
+enum ProjectRole {
+  OWNER
+  MEMBER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  memberships ProjectMember[]
+}
+
+// Dashboard-side access control: every page and server action that touches a project
+// must verify a membership row exists for the signed-in user, not just render
+// differently based on the session. The public (API-key) surface is unaffected — an API
+// key already scopes to exactly one project independent of dashboard membership.
+model ProjectMember {
+  id        String      @id @default(cuid())
+  projectId String
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ProjectRole @default(MEMBER)
+  createdAt DateTime    @default(now())
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+model ApiKey {
+  id                 String    @id @default(cuid())
+  projectId          String
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  publicKey          String    @unique
+  hashedSecretKey    String
+  secretKeyPreview   String
+  createdAt          DateTime  @default(now())
+  expiresAt          DateTime?
+
+  @@index([projectId])
+}
+
+// Staging table: durability layer for the MVP ingestion path (see ARCHITECTURE.md —
+// this is the thing to replace with real blob storage once replay-at-scale is needed).
+model IngestEvent {
+  id          String    @id @default(cuid())
+  projectId   String
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  eventId     String
+  entityId    String
+  eventType   String
+  payload     Json
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+  error       String?
+
+  @@unique([projectId, eventId])
+  @@index([processedAt])
+}
+
+enum ObservationType {
+  SPAN
+  GENERATION
+  EVENT
+}
+
+enum ObservationLevel {
+  DEBUG
+  DEFAULT
+  WARNING
+  ERROR
+}
+
+// One flat table for the whole execution tree. A "trace" is not a stored entity: it is
+// the root observation (parentObservationId IS NULL) plus everything reachable from it
+// via traceId. See ARCHITECTURE.md "Core model: derived trace, not stored trace".
+model Observation {
+  id                   String            @id
+  projectId            String
+  project              Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  traceId              String
+  parentObservationId  String?
+  type                 ObservationType   @default(SPAN)
+  name                 String?
+  startTime            DateTime?
+  endTime              DateTime?
+  level                ObservationLevel  @default(DEFAULT)
+  statusMessage        String?
+
+  input    Json?
+  output   Json?
+  metadata Json?
+
+  model              String?
+  modelParameters    Json?
+  providedUsageDetails Json?
+  usageDetails         Json?
+  providedCostDetails  Json?
+  costDetails          Json?
+  totalCost            Decimal?         @db.Decimal(12, 6)
+
+  // Only meaningful on the root observation of a trace; read via the root when
+  // synthesizing trace-level info for the UI.
+  traceName String?
+  userId    String?
+  sessionId String?
+  tags      String[]
+
+  promptId      String?
+  promptName    String?
+  promptVersion Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scores Score[]
+
+  @@unique([projectId, id])
+  @@index([projectId, traceId])
+  @@index([projectId, sessionId])
+  @@index([projectId, startTime])
+  @@index([projectId, parentObservationId])
+}
+
+enum ScoreDataType {
+  NUMERIC
+  CATEGORICAL
+  BOOLEAN
+}
+
+enum ScoreSource {
+  API
+  ANNOTATION
+  EVAL
+}
+
+model Score {
+  id            String        @id @default(cuid())
+  projectId     String
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  traceId       String
+  observationId String?
+  observation   Observation?  @relation(fields: [projectId, observationId], references: [projectId, id])
+  name          String
+  value         Float?
+  stringValue   String?
+  dataType      ScoreDataType @default(NUMERIC)
+  source        ScoreSource   @default(API)
+  comment       String?
+  createdAt     DateTime      @default(now())
+
+  @@index([projectId, traceId])
+  @@index([projectId, observationId])
+}
+
+enum PromptType {
+  TEXT
+  CHAT
+}
+
+model Prompt {
+  id        String     @id @default(cuid())
+  projectId String
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+  version   Int
+  type      PromptType @default(TEXT)
+  prompt    Json
+  labels    String[]
+  config    Json?
+  tags      String[]
+  createdAt DateTime   @default(now())
+
+  @@unique([projectId, name, version])
+  @@index([projectId, name])
+}
+
+// Deterministic scorer names runnable against a dataset without any external provider.
+// "llm_judge:*" names are reserved for a future model-based judge (see ARCHITECTURE.md
+// "Evaluation — deterministic vs model-based"); nothing in this MVP calls one yet.
+model Dataset {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  // Deterministic scorer names (e.g. "exact_match", "contains", "json_valid") run
+  // automatically when a run item is linked to a trace.
+  scorers     String[]
+  createdAt   DateTime @default(now())
+
+  items DatasetItem[]
+  runs  DatasetRun[]
+
+  @@unique([projectId, name])
+}
+
+model DatasetItem {
+  id             String   @id @default(cuid())
+  projectId      String
+  datasetId      String
+  dataset        Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  input          Json
+  expectedOutput Json?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  runItems DatasetRunItem[]
+
+  @@index([projectId, datasetId])
+}
+
+model DatasetRun {
+  id          String   @id @default(cuid())
+  projectId   String
+  datasetId   String
+  dataset     Dataset  @relation(fields: [datasetId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  items DatasetRunItem[]
+
+  @@unique([projectId, datasetId, name])
+}
+
+// Snapshots the item's input/expectedOutput as of when this run item was created, so a
+// later edit to the dataset item doesn't retroactively change what a past run is judged
+// against — same reasoning as Langfuse's dataset_run_items snapshot (see ARCHITECTURE.md).
+model DatasetRunItem {
+  id             String      @id @default(cuid())
+  projectId      String
+  datasetRunId   String
+  datasetRun     DatasetRun  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+  datasetItemId  String
+  datasetItem    DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+  traceId        String
+  observationId  String?
+  inputSnapshot  Json
+  expectedOutputSnapshot Json?
+  createdAt      DateTime    @default(now())
+
+  @@unique([datasetRunId, datasetItemId])
+  @@index([projectId, datasetRunId])
+}

@@ -1,0 +1,49 @@
+services:
+  postgres:
+    # The base compose file maps this to the host at 5455 for local `npm run dev`
+    # convenience; containers on the same Docker network reach it by service name on
+    # its real 5432 instead. Compose merges `ports` by concatenation, not replacement,
+    # so a plain `ports: []` here is silently a no-op — `!reset` is required to actually
+    # clear it (confirmed by testing: without `!reset`, the host port stayed mapped
+    # despite this file).
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tracewell:tracewell@postgres:5432/tracewell
+      REDIS_URL: redis://redis:6379
+      API_KEY_SALT: ${API_KEY_SALT}
+      AUTH_SECRET: ${AUTH_SECRET}
+    ports:
+      - "3000:3000"
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://tracewell:tracewell@postgres:5432/tracewell
+      REDIS_URL: redis://redis:6379
+      # The worker doesn't hash API keys itself, but it's the container with full
+      # node_modules (the web image's standalone output strips the Prisma/tsx CLI
+      # tooling) so it's the natural place to run one-off `prisma migrate`/seed
+      # commands, which do need this.
+      API_KEY_SALT: ${API_KEY_SALT}
