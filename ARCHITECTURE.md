@@ -263,6 +263,18 @@ processing lag per event (staging-table write to Postgres-committed observation)
 checked. No sustained load test was run — this is a sanity measurement at MVP scale, not
 a load-test result, and is reported as such.
 
+## Alternate deployment mode: in-process worker (`src/instrumentation.ts`)
+
+For platforms that only offer one long-running process type (no distinct
+"background worker" resource — Render's free tier is the motivating case), the
+ingestion worker can run inside the same Node process as the Next.js server via
+Next.js's `instrumentation.ts` hook, gated behind `ENABLE_INPROCESS_WORKER=true`. Local
+dev and the two-container Docker Compose deployment never set that variable, so they
+keep running web and worker as separate processes exactly as before — this is additive,
+not a replacement. Verified directly: stopped the standalone worker container, started
+the web container alone with the flag set, and confirmed a real trace was both ingested
+and fully processed by that single process.
+
 ## Known MVP gaps (explicit, not hidden)
 
 - No rate limiting yet. Langfuse's own self-host rate limiting is a no-op by default
