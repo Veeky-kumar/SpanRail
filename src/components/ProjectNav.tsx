@@ -8,6 +8,7 @@ const TABS = [
   { label: "Analytics", href: "/analytics" },
   { label: "Prompts", href: "/prompts" },
   { label: "Datasets", href: "/datasets" },
+  { label: "Settings", href: "/settings" },
 ];
 
 export function ProjectNav({ projectId }: { projectId: string }) {

@@ -1,0 +1,46 @@
+"use client";
+
+import { useActionState } from "react";
+import { createApiKeyAction, type CreateApiKeyState } from "@/app/projects/[projectId]/settings/actions";
+
+const initialState: CreateApiKeyState = {};
+
+export function CreateApiKeyForm({ projectId }: { projectId: string }) {
+  const action = createApiKeyAction.bind(null, projectId);
+  const [state, formAction, pending] = useActionState(action, initialState);
+
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <h3 className="text-sm font-medium">Create API key</h3>
+      <p className="mt-1 text-xs text-muted">Used by the SDK to send traces and manage prompts/datasets.</p>
+
+      <form action={formAction} className="mt-3">
+        <button
+          type="submit"
+          disabled={pending}
+          className="pressable rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90 disabled:opacity-60"
+        >
+          {pending ? "Generating…" : "Generate new key"}
+        </button>
+      </form>
+
+      {state.secretKey && (
+        <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+          <p className="font-medium text-amber-600">Save this now — the secret key cannot be shown again.</p>
+          <div className="mt-2 space-y-1 font-mono">
+            <div>
+              <span className="text-muted">TRACEWELL_PUBLIC_KEY=</span>
+              {state.publicKey}
+            </div>
+            <div>
+              <span className="text-muted">TRACEWELL_SECRET_KEY=</span>
+              {state.secretKey}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {state.error && <p className="mt-2 text-xs text-red-500">{state.error}</p>}
+    </div>
+  );
+}
