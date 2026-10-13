@@ -32,7 +32,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent"
       />
 
-      {state.error && <p className="mt-2 text-xs text-red-500">{state.error}</p>}
+      {state.error && <p className="reveal mt-2 text-xs text-red-500">{state.error}</p>}
 
       <button
         type="submit"

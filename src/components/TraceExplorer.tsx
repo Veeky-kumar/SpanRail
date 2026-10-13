@@ -133,7 +133,13 @@ export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
       </div>
 
       <div className="rounded-xl border border-border bg-surface p-4">
-        {selected ? <ObservationDetail observation={selected} /> : <p className="text-sm text-muted">Select a span</p>}
+        {selected ? (
+          <div key={selected.id} className="reveal-fast">
+            <ObservationDetail observation={selected} />
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Select a span</p>
+        )}
       </div>
     </div>
   );

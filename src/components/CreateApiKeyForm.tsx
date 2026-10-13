@@ -25,7 +25,7 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
       </form>
 
       {state.secretKey && (
-        <div className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+        <div className="reveal mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
           <p className="font-medium text-amber-600">Save this now — the secret key cannot be shown again.</p>
           <div className="mt-2 space-y-1 font-mono">
             <div>
@@ -40,7 +40,7 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {state.error && <p className="mt-2 text-xs text-red-500">{state.error}</p>}
+      {state.error && <p className="reveal mt-2 text-xs text-red-500">{state.error}</p>}
     </div>
   );
 }

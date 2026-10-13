@@ -27,7 +27,9 @@ export function ChartCard({
           {showTable ? "View chart" : "View as table"}
         </button>
       </div>
-      <div className="mt-3">{showTable ? table : children}</div>
+      <div key={showTable ? "table" : "chart"} className="reveal mt-3">
+        {showTable ? table : children}
+      </div>
     </figure>
   );
 }

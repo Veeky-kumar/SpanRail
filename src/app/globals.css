@@ -9,6 +9,12 @@
   --ink: 28 28 26;
   --muted: 120 118 114;
   --accent: 79 70 229;
+
+  /* Strong easing tokens (built-in CSS easings are too weak for deliberate motion) —
+     see emil-design-eng skill. Shared here so .pressable/.reveal/etc. don't each hand-
+     type their own near-identical cubic-bezier. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -28,10 +34,41 @@ body {
 }
 
 .pressable {
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition: transform 160ms var(--ease-out);
 }
 .pressable:active {
   transform: scale(0.97);
+}
+
+/* Entrance reveal for rare/occasional state changes a user should notice: the one-time
+   secret-key box, form errors, the chart<->table toggle. Never scale(0) — starts
+   visible-but-small, per emil-design-eng. @starting-style fires on first mount, which
+   matches React's `{condition && <div>}` pattern directly, no useEffect/data-mounted
+   dance needed. */
+.reveal {
+  opacity: 1;
+  transform: scale(1);
+  transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out);
+}
+@starting-style {
+  .reveal {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+/* Fast, transform-free fade for content that changes on a frequent click (e.g. selecting
+   a different span in a trace tree) — prevents a jarring teleport without feeling
+   sluggish on repeated use. Deliberately opacity-only: no scale/translate, since this
+   fires often rather than rarely. */
+.reveal-fast {
+  opacity: 1;
+  transition: opacity 120ms var(--ease-out);
+}
+@starting-style {
+  .reveal-fast {
+    opacity: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -40,6 +77,15 @@ body {
   }
   .pressable:active {
     transform: none;
+  }
+  .reveal,
+  .reveal-fast {
+    transition: opacity 120ms linear;
+  }
+  @starting-style {
+    .reveal {
+      transform: none;
+    }
   }
 }
 
