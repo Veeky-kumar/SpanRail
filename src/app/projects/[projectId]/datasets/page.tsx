@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listDatasets } from "@/server/datasets";
 import { DETERMINISTIC_SCORERS } from "@/server/scorers";
 import { createDatasetAction } from "./actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function DatasetsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -74,9 +75,12 @@ export default async function DatasetsPage({ params }: { params: Promise<{ proje
           ))}
         </div>
 
-        <button type="submit" className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90">
+        <SubmitButton
+          pendingLabel="Creating…"
+          className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90"
+        >
           Create dataset
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

@@ -5,7 +5,7 @@ export function StatTile({ label, value, tone }: { label: string; value: string;
         {label}
       </div>
       <div
-        className="mt-1 text-2xl font-semibold"
+        className="mt-1 text-2xl font-semibold tracking-tight"
         style={{ color: tone === "critical" ? "var(--viz-status-critical)" : "var(--viz-text-primary)" }}
       >
         {value}

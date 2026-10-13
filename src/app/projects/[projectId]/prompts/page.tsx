@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listPromptNames } from "@/server/prompts";
 import { createPromptVersionAction } from "./actions";
 import { formatRelativeTime } from "@/lib/format";
+import { SubmitButton } from "@/components/SubmitButton";
 
 export default async function PromptsPage({ params }: { params: Promise<{ projectId: string }> }) {
   const { projectId } = await params;
@@ -69,9 +70,12 @@ export default async function PromptsPage({ params }: { params: Promise<{ projec
         <label className="mt-3 block text-xs font-medium text-muted">Labels (comma-separated)</label>
         <input name="labels" className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" placeholder="production" />
 
-        <button type="submit" className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90">
+        <SubmitButton
+          pendingLabel="Creating…"
+          className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90"
+        >
           Create version
-        </button>
+        </SubmitButton>
       </form>
     </div>
   );

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getDataset, getDatasetItems, getDatasetRuns, getRunScoreSummary } from "@/server/datasets";
 import { formatRelativeTime } from "@/lib/format";
 import { addDatasetItemAction, createDatasetRunAction } from "../actions";
+import { SubmitButton } from "@/components/SubmitButton";
 
 function JsonPreview({ value }: { value: unknown }) {
   const text = typeof value === "string" ? value : JSON.stringify(value);
@@ -73,9 +74,12 @@ export default async function DatasetDetailPage({
             <textarea name="input" required rows={2} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
             <label className="mt-2 block text-xs text-muted">Expected output (optional)</label>
             <textarea name="expectedOutput" rows={2} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
-            <button type="submit" className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas">
+            <SubmitButton
+              pendingLabel="Adding…"
+              className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
+            >
               Add item
-            </button>
+            </SubmitButton>
           </form>
         </section>
 
@@ -119,9 +123,12 @@ export default async function DatasetDetailPage({
           <form action={createRun} className="mt-3 rounded-xl border border-border bg-surface p-4">
             <h4 className="text-xs font-medium text-muted">New run</h4>
             <input name="name" required placeholder="run-2026-10-13" className="mt-2 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
-            <button type="submit" className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas">
+            <SubmitButton
+              pendingLabel="Creating…"
+              className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
+            >
               Create run
-            </button>
+            </SubmitButton>
           </form>
         </section>
       </div>
