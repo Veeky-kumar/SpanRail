@@ -12,7 +12,7 @@ async function main() {
     throw new Error("Set TRACEWELL_PUBLIC_KEY and TRACEWELL_SECRET_KEY (printed by `npm run db:seed`)");
   }
 
-  const tracewell = new Tracewell({ publicKey, secretKey, baseUrl: "http://localhost:3000" });
+  const tracewell = new Tracewell({ publicKey, secretKey, baseUrl: process.env.TRACEWELL_BASE_URL ?? "http://localhost:3000" });
 
   const trace = tracewell.trace({
     name: "research-agent-run",
