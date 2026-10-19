@@ -54,3 +54,52 @@ client -> http.Server -> mux (server.Handler)
 ### Pieces to type yourself (so you can defend them)
 `config.Load` and `duration`, the `Rewrite` + `ErrorHandler` in `proxy.New`, and the shutdown
 sequence in `main`. They are short and are the first things an interviewer asks about.
+
+## Milestone 2: capture, usage parsing, SSE passthrough
+
+### The idea: look, don't touch
+Everything the gateway learns comes from a side copy. The bytes between client and upstream
+are never changed or delayed.
+
+- **Request:** `capture.PeekRequest` reads up to `PEEK_BYTES` of the body, finds the top-level
+  `model` and `stream` keys with `json.Decoder` tokens (so a truncated body still yields what came
+  before the cut), then puts the body back together with `io.MultiReader(prefix, restOfBody)`.
+  Only the prefix sits in memory. A 200 KB prompt still streams through.
+- **Response:** `observe.recorder` is an `http.ResponseWriter` that forwards every `Write`
+  to the real writer first and only then copies the bytes into a bounded buffer. It also
+  implements `Flush` (so SSE chunks leave immediately) and `Unwrap` (so `http.ResponseController`
+  can still reach the real connection).
+- **Usage:** non-streaming JSON is parsed after the response ends (gzip is decoded with a size
+  limit). For SSE, `SSEUsageScanner` is an `io.Writer` fed chunk by chunk. It splits lines itself,
+  so it does not matter where the network cut the stream. It keeps the last `data:` line holding
+  a non-null `usage`.
+- **Never invent numbers.** `Usage` is a `map[string]int64` containing only the keys the provider
+  sent. `nil` means unknown. `total` is derived only when both input and output are present.
+- **Known gap:** OpenAI sends usage in a stream only if the client asked with
+  `stream_options.include_usage`. We do not edit requests, so otherwise streamed usage is unknown.
+- **Redaction:** `redact.Headers` always masks `Authorization`, cookies and common API-key
+  headers, plus any names in `REDACT_HEADERS`. Headers and bodies are not reported unless
+  `CAPTURE_HEADERS` / `CAPTURE_BODIES` are turned on.
+
+### How the streaming test proves no buffering
+The fake upstream sends one SSE chunk, flushes, then *waits for the test to release it*. The
+client must receive that first chunk while the upstream is still blocked. If the proxy buffered,
+the client would get nothing until the upstream finished, which never happens, so the test fails by
+deadline. I checked this by breaking `Flush` on purpose: the test failed with
+"stream is buffered" (and an earlier version of the test hung instead of failing, which is why the
+deadline now covers the request itself).
+
+### Interview questions
+1. *How do you read the body for `model` and still forward it?* Read a bounded prefix, then
+   `MultiReader(prefix, original)`. Memory is bounded by the peek size, not the body size.
+2. *Why `Unwrap` on the recorder?* Wrapping a ResponseWriter hides optional interfaces
+   (Flusher, Hijacker). `ResponseController` follows `Unwrap` to find them.
+3. *Why scan SSE with a stateful line splitter?* TCP delivers arbitrary slices; a JSON line can be
+   split anywhere. The test feeds the stream 1 byte at a time to prove independence.
+4. *What stops a malicious upstream exhausting memory?* Response buffer limit, SSE line limit,
+   gzip expansion limit (`io.LimitReader`).
+5. *Why is unknown usage better than an estimate?* This data feeds cost reporting; a guessed
+   number looks real and is wrong, an absent one is visibly missing.
+
+### Pieces to type yourself
+`PeekRequest` + `scanTopLevel`, the `recorder.Write/Flush/Unwrap` trio, and `SSEUsageScanner.Write`.
