@@ -21,7 +21,11 @@ const statusClientClosed = 499
 
 // Observation is everything the gateway knows about one proxied call.
 type Observation struct {
-	ID     string // generation id
+	ID string // generation id
+	// TraceID and ParentObservationID are set when the client asked to attach this call to an
+	// existing trace; empty TraceID means the call starts a new trace.
+	TraceID, ParentObservationID string
+
 	Name   string
 	Model  string
 	Method string

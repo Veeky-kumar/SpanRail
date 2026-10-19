@@ -1,13 +1,23 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 )
 
+// env serves m as the environment. Tests that say nothing about Tracewell get reporting
+// switched off, so they do not each need to supply keys.
 func env(m map[string]string) func(string) string {
-	return func(k string) string { return m[k] }
+	_, hasKey := m["TRACEWELL_PUBLIC_KEY"]
+	_, hasFlag := m["REPORT_ENABLED"]
+	return func(k string) string {
+		if k == "REPORT_ENABLED" && !hasKey && !hasFlag {
+			return "false"
+		}
+		return m[k]
+	}
 }
 
 func TestLoadCaptureSettings(t *testing.T) {
@@ -52,6 +62,74 @@ func TestLoadCaptureSettings(t *testing.T) {
 	} {
 		if _, err := Load(env(with(bad...))); err == nil || !strings.Contains(err.Error(), bad[0]) {
 			t.Errorf("%v: err = %v, want mention of %s", bad, err, bad[0])
+		}
+	}
+}
+
+func TestLoadReporting(t *testing.T) {
+	keys := map[string]string{"UPSTREAM_URL": "http://x", "TRACEWELL_PUBLIC_KEY": "pk-1", "TRACEWELL_SECRET_KEY": "sk-very-secret"}
+	with := func(kv ...string) map[string]string {
+		m := map[string]string{}
+		for k, v := range keys {
+			m[k] = v
+		}
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+
+	c, err := Load(env(keys))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.ReportEnabled || c.TracewellURL.String() != "http://localhost:3000" || c.PublicKey != "pk-1" ||
+		c.BatchSize != 50 || c.FlushInterval != 2*time.Second || c.QueueSize != 1000 ||
+		c.ReportWorkers != 2 || c.ReportMaxAttempts != 5 || c.ReportTimeout != 10*time.Second {
+		t.Errorf("defaults wrong: %+v", c)
+	}
+	if string(c.SecretKey) != "sk-very-secret" {
+		t.Error("secret not loaded")
+	}
+	for _, shown := range []string{fmt.Sprintf("%v", c), fmt.Sprintf("%+v", c), fmt.Sprintf("%#v", c), fmt.Sprint(c.SecretKey)} {
+		if strings.Contains(shown, "sk-very-secret") {
+			t.Errorf("secret key leaks when config is printed: %s", shown)
+		}
+	}
+
+	c, err = Load(env(with("TRACEWELL_BASE_URL", "https://tw.example/", "BATCH_SIZE", "10", "FLUSH_INTERVAL", "500ms",
+		"QUEUE_SIZE", "5", "REPORT_WORKERS", "4", "REPORT_MAX_ATTEMPTS", "3", "REPORT_TIMEOUT", "1s")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.TracewellURL.Host != "tw.example" || c.BatchSize != 10 || c.FlushInterval != 500*time.Millisecond ||
+		c.QueueSize != 5 || c.ReportWorkers != 4 || c.ReportMaxAttempts != 3 || c.ReportTimeout != time.Second {
+		t.Errorf("overrides not applied: %+v", c)
+	}
+
+	// Reporting can be switched off, and then keys are not needed.
+	c, err = Load(env(map[string]string{"UPSTREAM_URL": "http://x", "REPORT_ENABLED": "false"}))
+	if err != nil || c.ReportEnabled {
+		t.Errorf("REPORT_ENABLED=false: enabled=%v err=%v", c.ReportEnabled, err)
+	}
+
+	for name, bad := range map[string]struct {
+		kv   []string
+		want string
+	}{
+		"missing public key": {[]string{"TRACEWELL_PUBLIC_KEY", ""}, "TRACEWELL_PUBLIC_KEY is required"},
+		"missing secret key": {[]string{"TRACEWELL_SECRET_KEY", ""}, "TRACEWELL_SECRET_KEY is required"},
+		"bad base url":       {[]string{"TRACEWELL_BASE_URL", "tracewell"}, "TRACEWELL_BASE_URL"},
+		"batch too big":      {[]string{"BATCH_SIZE", "501"}, "BATCH_SIZE"},
+		"batch zero":         {[]string{"BATCH_SIZE", "0"}, "BATCH_SIZE"},
+		"queue zero":         {[]string{"QUEUE_SIZE", "0"}, "QUEUE_SIZE"},
+		"workers bad":        {[]string{"REPORT_WORKERS", "x"}, "REPORT_WORKERS"},
+		"attempts zero":      {[]string{"REPORT_MAX_ATTEMPTS", "0"}, "REPORT_MAX_ATTEMPTS"},
+		"interval bad":       {[]string{"FLUSH_INTERVAL", "0s"}, "FLUSH_INTERVAL"},
+		"report flag bad":    {[]string{"REPORT_ENABLED", "maybe"}, "REPORT_ENABLED"},
+	} {
+		if _, err := Load(env(with(bad.kv...))); err == nil || !strings.Contains(err.Error(), bad.want) {
+			t.Errorf("%s: err = %v, want containing %q", name, err, bad.want)
 		}
 	}
 }

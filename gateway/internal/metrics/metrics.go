@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -91,6 +92,31 @@ func (m *Metrics) ObserveRequest(status int, total time.Duration, t nettrace.Sna
 	if t.TTFB != nil {
 		m.connections.WithLabelValues(strconv.FormatBool(t.ConnReused)).Inc()
 	}
+}
+
+// Value returns the current value of an unlabelled counter or gauge by metric name. It exists
+// so tests (and the shutdown log line) can read a metric without scraping text.
+func (m *Metrics) Value(name string) (float64, error) {
+	families, err := m.reg.Gather()
+	if err != nil {
+		return 0, err
+	}
+	for _, f := range families {
+		if f.GetName() != name {
+			continue
+		}
+		var sum float64
+		for _, mt := range f.GetMetric() {
+			switch {
+			case mt.Counter != nil:
+				sum += mt.Counter.GetValue()
+			case mt.Gauge != nil:
+				sum += mt.Gauge.GetValue()
+			}
+		}
+		return sum, nil
+	}
+	return 0, fmt.Errorf("metric %q not found", name)
 }
 
 // Handler serves the metrics for Prometheus to scrape.

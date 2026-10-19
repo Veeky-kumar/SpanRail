@@ -150,3 +150,49 @@ subtract:
 
 ### Pieces to type yourself
 `Timings.clientTrace()` and `Transport`, and `Metrics.ObserveRequest`.
+
+## Milestone 4: the async reporter
+
+### Shape
+```
+request goroutine --Enqueue--> [ bounded chan of Observation ] --> worker goroutines --> batch --> HTTPSender --> Tracewell
+   (never blocks)                    (QUEUE_SIZE)                 (size OR interval)    (retry + backoff)
+```
+- **`Enqueue` uses `select` with a `default`.** If the channel is full it takes the default branch,
+  increments `dropped_total` and returns false. The proxied call is never delayed to log it.
+- **Workers own their batch.** Each worker loops on `select { case o := <-queue; case <-ticker.C }`.
+  A batch flushes when it reaches `BATCH_SIZE` events or when the ticker fires, whichever is first.
+- **Retry is the reporter's job, classification is the sender's.** `Sender.Send` returns a `Result`:
+  accepted, rejected for good (4xx, auth), or retryable (network error, 429, 5xx). Only the
+  retryable events are sent again. Tracewell's ingestion is idempotent per event id, so a retry
+  can never create duplicates.
+- **Backoff with full jitter:** the ceiling doubles per attempt up to a cap, and the actual wait is a
+  random point below it. Without jitter, every gateway retries at the same instant after an outage.
+- **207 Multi-Status** means the HTTP call worked but individual events may have failed, so the
+  sender reads the per-event list. Validation errors are keyed by event id, storage errors by entity id.
+- **Graceful shutdown order (in `main`):** `/readyz` -> 503, `srv.Shutdown` waits for in-flight
+  requests (they may still enqueue), *then* `reporter.Close`, which closes the channel. Workers
+  drain what is left, flush, and exit. Closing the channel before in-flight requests finish would
+  make a late `Enqueue` send on a closed channel and panic, hence the `RWMutex` + `closed` flag.
+- **Close has a deadline.** If Tracewell hangs, `Close` cancels the shared context so in-flight HTTP
+  calls and backoff sleeps abort, and returns an error instead of blocking shutdown forever.
+
+### What gets sent (see `report/events.go`)
+New trace: `trace-create` (id == traceId), `generation-create`, `generation-update`.
+Attached to an existing trace: only the two generation events. Metadata, usage and end time go on
+the update only because the worker replaces `metadata` wholesale. Unknowns are omitted; `costDetails`
+is never sent (no price table, so no invented cost).
+
+### Interview questions
+1. *Why drop instead of block when the queue is full?* The gateway sits on the critical path of a
+   paying call. Observability must degrade before the product does; the drop is counted and visible.
+2. *How do you avoid panicking on send-after-close?* Producers take an `RLock` and check `closed`;
+   `Close` takes the write lock before closing the channel. Sending never happens on a closed channel.
+3. *What is the difference between `/healthz` and `/readyz` during shutdown?* Alive vs should-receive-traffic.
+4. *Why retry only some events from a 207?* Retrying accepted events is wasteful, and retrying
+   rejected (invalid) ones can never succeed.
+5. *How would you prove the retry logic?* Inject `Sleep` and `Rand`; assert the exact sleep sequence
+   (100ms, 200ms) and the attempt count with a fake sender.
+
+### Pieces to type yourself
+`Reporter.Enqueue`, `Reporter.worker`, `Reporter.Close`, `backoff`, and the shutdown order in `main`.

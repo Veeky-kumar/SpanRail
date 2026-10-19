@@ -16,18 +16,9 @@ import (
 	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
 	"github.com/veeky-ai/tracewell-gateway/internal/observe"
 	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
+	"github.com/veeky-ai/tracewell-gateway/internal/report"
 	"github.com/veeky-ai/tracewell-gateway/internal/server"
 )
-
-// logSink is a stand-in until the Tracewell reporter exists. It logs a summary only: never
-// headers or bodies, so provider keys cannot reach the log.
-type logSink struct{}
-
-func (logSink) Enqueue(o observe.Observation) bool {
-	log.Printf("call %s model=%q status=%d stream=%v bytes=%d usage=%v dur=%s",
-		o.Name, o.Model, o.Status, o.Streaming, o.ResponseBytes, o.Usage, o.End.Sub(o.Start).Round(time.Millisecond))
-	return true
-}
 
 func main() {
 	cfg, err := config.Load(os.Getenv)
@@ -36,20 +27,42 @@ func main() {
 	}
 
 	m := metrics.New()
-	var draining atomic.Bool
-	observed := observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), observe.Options{
+	opts := observe.Options{
 		PeekBytes:       cfg.PeekBytes,
 		ParseMaxBytes:   cfg.ParseMaxBytes,
 		CaptureBodies:   cfg.CaptureBodies,
 		CaptureMaxBytes: cfg.CaptureMaxBytes,
 		CaptureHeaders:  cfg.CaptureHeaders,
 		RedactHeaders:   cfg.RedactHeaders,
-		Sink:            logSink{},
 		Metrics:         m,
-	})
+	}
+
+	var reporter *report.Reporter
+	if cfg.ReportEnabled {
+		sender := report.NewHTTPSender(cfg.TracewellURL, cfg.PublicKey, string(cfg.SecretKey), cfg.ReportTimeout)
+		reporter = report.New(report.Config{
+			QueueSize:     cfg.QueueSize,
+			BatchSize:     cfg.BatchSize,
+			Workers:       cfg.ReportWorkers,
+			FlushInterval: cfg.FlushInterval,
+			MaxAttempts:   cfg.ReportMaxAttempts,
+			BaseBackoff:   250 * time.Millisecond,
+			MaxBackoff:    10 * time.Second,
+		}, sender, m)
+		m.SetQueueDepth(reporter.QueueDepth)
+		opts.Sink = reporter
+		log.Printf("reporting to %s", cfg.TracewellURL.Redacted())
+	} else {
+		log.Print("reporting disabled: running as a plain proxy")
+	}
+
+	var draining atomic.Bool
 	srv := &http.Server{
-		Addr:    cfg.ListenAddr,
-		Handler: server.Handler(observed, server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }}),
+		Addr: cfg.ListenAddr,
+		Handler: server.Handler(
+			observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), opts),
+			server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }},
+		),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -65,11 +78,21 @@ func main() {
 	case <-ctx.Done():
 	}
 
+	// Order matters. 1) turn /readyz to 503 so balancers stop sending traffic, 2) let in-flight
+	// requests finish (each may still enqueue an observation), 3) only then flush the reporter,
+	// so nothing is enqueued after the final flush.
 	log.Print("shutting down")
-	draining.Store(true) // /readyz turns 503 so load balancers stop sending new traffic
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	draining.Store(true)
+	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancelHTTP()
+	if err := srv.Shutdown(httpCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("shutdown: %v", err)
+	}
+	if reporter != nil {
+		flushCtx, cancelFlush := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+		defer cancelFlush()
+		if err := reporter.Close(flushCtx); err != nil {
+			log.Printf("report flush incomplete: %v", err)
+		}
 	}
 }

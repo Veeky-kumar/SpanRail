@@ -24,7 +24,26 @@ type Config struct {
 	CaptureMaxBytes int      // cap on each reported body
 	CaptureHeaders  bool     // report request headers, redacted (off by default)
 	RedactHeaders   []string // extra header names to redact, on top of the built-in list
+
+	ReportEnabled     bool // false = plain proxy, nothing is sent to Tracewell
+	TracewellURL      *url.URL
+	PublicKey         string
+	SecretKey         Secret
+	BatchSize         int // events per ingestion request
+	FlushInterval     time.Duration
+	QueueSize         int // observations buffered before new ones are dropped
+	ReportWorkers     int
+	ReportMaxAttempts int
+	ReportTimeout     time.Duration // per HTTP attempt to Tracewell
 }
+
+// Secret is a string that refuses to print itself, so a stray log line or %+v of the
+// whole Config cannot leak the Tracewell secret key.
+type Secret string
+
+func (Secret) String() string             { return "[REDACTED]" }
+func (Secret) GoString() string           { return "[REDACTED]" }
+func (Secret) Format(f fmt.State, _ rune) { _, _ = f.Write([]byte("[REDACTED]")) }
 
 // Load reads configuration through getenv (os.Getenv in production, a map in tests).
 func Load(getenv func(string) string) (Config, error) {
@@ -83,7 +102,79 @@ func Load(getenv func(string) string) (Config, error) {
 			c.RedactHeaders = append(c.RedactHeaders, h)
 		}
 	}
+	return loadReporting(getenv, c)
+}
+
+func loadReporting(getenv func(string) string, c Config) (Config, error) {
+	enabled := true
+	if raw := getenv("REPORT_ENABLED"); raw != "" {
+		b, err := strconv.ParseBool(raw)
+		if err != nil {
+			return c, fmt.Errorf("REPORT_ENABLED: %q is not a boolean (use true or false)", raw)
+		}
+		enabled = b
+	}
+	c.ReportEnabled = enabled
+	if !enabled {
+		return c, nil
+	}
+
+	base := getenv("TRACEWELL_BASE_URL")
+	if base == "" {
+		base = "http://localhost:3000"
+	}
+	u, err := url.Parse(base)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return c, fmt.Errorf("TRACEWELL_BASE_URL must be an http(s) URL with a host, got %q", base)
+	}
+	c.TracewellURL = u
+
+	if c.PublicKey = getenv("TRACEWELL_PUBLIC_KEY"); c.PublicKey == "" {
+		return c, errors.New("TRACEWELL_PUBLIC_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
+	}
+	secret := getenv("TRACEWELL_SECRET_KEY")
+	if secret == "" {
+		return c, errors.New("TRACEWELL_SECRET_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
+	}
+	c.SecretKey = Secret(secret)
+
+	// An observation becomes up to 3 events and the API accepts 1000 per request, so 500
+	// leaves comfortable headroom for a batch to overshoot by one observation.
+	if c.BatchSize, err = count(getenv, "BATCH_SIZE", 50, 500); err != nil {
+		return c, err
+	}
+	if c.QueueSize, err = count(getenv, "QUEUE_SIZE", 1000, 1_000_000); err != nil {
+		return c, err
+	}
+	if c.ReportWorkers, err = count(getenv, "REPORT_WORKERS", 2, 64); err != nil {
+		return c, err
+	}
+	if c.ReportMaxAttempts, err = count(getenv, "REPORT_MAX_ATTEMPTS", 5, 20); err != nil {
+		return c, err
+	}
+	if c.FlushInterval, err = duration(getenv, "FLUSH_INTERVAL", 2*time.Second); err != nil {
+		return c, err
+	}
+	if c.ReportTimeout, err = duration(getenv, "REPORT_TIMEOUT", 10*time.Second); err != nil {
+		return c, err
+	}
 	return c, nil
+}
+
+// count reads a positive integer no larger than max.
+func count(getenv func(string) string, key string, def, max int) (int, error) {
+	raw := getenv(key)
+	if raw == "" {
+		return def, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	if n < 1 || n > max {
+		return 0, fmt.Errorf("%s must be between 1 and %d, got %d", key, max, n)
+	}
+	return n, nil
 }
 
 func size(getenv func(string) string, key string, def int64) (int64, error) {
