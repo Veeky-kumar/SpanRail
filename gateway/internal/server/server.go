@@ -2,6 +2,9 @@
 package server
 
 import (
+	"crypto/tls"
+	"fmt"
+	"net"
 	"net/http"
 	"time"
 )
@@ -59,4 +62,31 @@ func New(addr string, h http.Handler) *http.Server {
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
+}
+
+// Probe checks the gateway's own /healthz on the loopback interface. It backs the
+// `gateway healthcheck` subcommand, because the minimal runtime image has no curl or shell.
+// addr is the gateway's LISTEN_ADDR (":8080" or "host:port"). The probe only ever dials
+// 127.0.0.1, so certificate verification is skipped for the TLS case: the cert is issued for
+// the public name, not for loopback, and nothing sensitive is sent.
+func Probe(addr string, useTLS bool) error {
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fmt.Errorf("bad listen address %q: %w", addr, err)
+	}
+	scheme := "http"
+	client := &http.Client{Timeout: 3 * time.Second}
+	if useTLS {
+		scheme = "https"
+		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // loopback self-probe, see above
+	}
+	resp, err := client.Get(scheme + "://" + net.JoinHostPort("127.0.0.1", port) + "/healthz")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("healthz returned %d", resp.StatusCode)
+	}
+	return nil
 }

@@ -27,5 +27,28 @@ services:
       timeout: 5s
       retries: 10
 
+  # Optional LLM gateway (see gateway/README.md). Not started by default:
+  #   docker compose --profile gateway up -d --build gateway
+  # Outside of the production overlay it assumes Tracewell is running on the host
+  # (npm run dev), hence host.docker.internal.
+  gateway:
+    profiles: ["gateway"]
+    build:
+      context: ./gateway
+    restart: unless-stopped
+    environment:
+      UPSTREAM_URL: ${GATEWAY_UPSTREAM_URL:-https://api.openai.com}
+      TRACEWELL_BASE_URL: ${GATEWAY_TRACEWELL_URL:-http://host.docker.internal:3000}
+      TRACEWELL_PUBLIC_KEY: ${TRACEWELL_PUBLIC_KEY:-}
+      TRACEWELL_SECRET_KEY: ${TRACEWELL_SECRET_KEY:-}
+      # Keep serving (with /readyz = 503) briefly after SIGTERM so balancers notice.
+      DRAIN_DELAY: 3s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8080:8080"
+    # Must exceed DRAIN_DELAY + SHUTDOWN_TIMEOUT (+ the final flush), or Docker kills it mid-flush.
+    stop_grace_period: 40s
+
 volumes:
   tracewell_postgres_data:

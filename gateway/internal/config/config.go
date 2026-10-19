@@ -17,6 +17,8 @@ type Config struct {
 	Upstream        *url.URL
 	UpstreamTimeout time.Duration // max wait for upstream response headers
 	ShutdownTimeout time.Duration // max time to finish in-flight work on SIGTERM
+	TLSCertFile     string        // with TLSKeyFile: serve HTTPS; empty = plain HTTP
+	TLSKeyFile      string
 	DrainDelay      time.Duration // after SIGTERM, keep serving while /readyz says 503, so balancers notice
 	PeekTimeout     time.Duration // max time a client may stall while its request prefix is read
 
@@ -109,6 +111,10 @@ func Load(getenv func(string) string) (Config, error) {
 		if h = strings.TrimSpace(h); h != "" {
 			c.RedactHeaders = append(c.RedactHeaders, h)
 		}
+	}
+	c.TLSCertFile, c.TLSKeyFile = getenv("TLS_CERT_FILE"), getenv("TLS_KEY_FILE")
+	if (c.TLSCertFile == "") != (c.TLSKeyFile == "") {
+		return c, errors.New("TLS_CERT_FILE and TLS_KEY_FILE must be set together")
 	}
 	return loadReporting(getenv, c)
 }

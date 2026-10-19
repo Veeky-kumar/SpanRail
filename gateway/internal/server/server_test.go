@@ -2,6 +2,7 @@ package server
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -97,5 +98,36 @@ func TestNewSetsTimeoutsAgainstSlowClients(t *testing.T) {
 	}
 	if s.WriteTimeout != 0 {
 		t.Errorf("WriteTimeout=%v: must stay 0 or long streaming responses are cut off", s.WriteTimeout)
+	}
+}
+
+func TestProbe(t *testing.T) {
+	ok := httptest.NewServer(Handler(http.NotFoundHandler(), Ops{}))
+	defer ok.Close()
+	addr := ok.Listener.Addr().String()
+	if err := Probe(addr, false); err != nil {
+		t.Errorf("healthy server: %v", err)
+	}
+	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(500) }))
+	defer bad.Close()
+	if err := Probe(bad.Listener.Addr().String(), false); err == nil {
+		t.Error("a 500 must fail the probe")
+	}
+	if err := Probe("127.0.0.1:1", false); err == nil {
+		t.Error("nothing listening must fail the probe")
+	}
+	tlsSrv := httptest.NewTLSServer(Handler(http.NotFoundHandler(), Ops{}))
+	defer tlsSrv.Close()
+	if err := Probe(tlsSrv.Listener.Addr().String(), true); err != nil {
+		t.Errorf("tls server (self-signed, loopback): %v", err)
+	}
+}
+
+func TestProbeAddrWithWildcardHost(t *testing.T) {
+	ok := httptest.NewServer(Handler(http.NotFoundHandler(), Ops{}))
+	defer ok.Close()
+	_, port, _ := net.SplitHostPort(ok.Listener.Addr().String())
+	if err := Probe(":"+port, false); err != nil { // LISTEN_ADDR=":8080" style
+		t.Errorf("%v", err)
 	}
 }

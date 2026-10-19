@@ -134,6 +134,33 @@ func TestLoadReporting(t *testing.T) {
 	}
 }
 
+func TestLoadTLS(t *testing.T) {
+	base := map[string]string{"UPSTREAM_URL": "http://x"}
+	with := func(kv ...string) map[string]string {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+	c, err := Load(env(base))
+	if err != nil || c.TLSCertFile != "" || c.TLSKeyFile != "" {
+		t.Fatalf("TLS must be off by default: %+v %v", c, err)
+	}
+	c, err = Load(env(with("TLS_CERT_FILE", "/c.pem", "TLS_KEY_FILE", "/k.pem")))
+	if err != nil || c.TLSCertFile != "/c.pem" || c.TLSKeyFile != "/k.pem" {
+		t.Fatalf("both set: %+v %v", c, err)
+	}
+	for _, kv := range [][]string{{"TLS_CERT_FILE", "/c.pem"}, {"TLS_KEY_FILE", "/k.pem"}} {
+		if _, err := Load(env(with(kv...))); err == nil || !strings.Contains(err.Error(), "TLS_CERT_FILE and TLS_KEY_FILE") {
+			t.Errorf("%v alone should fail with a pairing message, got %v", kv, err)
+		}
+	}
+}
+
 func TestLoad(t *testing.T) {
 	tests := []struct {
 		name    string

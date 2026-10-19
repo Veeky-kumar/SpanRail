@@ -275,6 +275,52 @@ not a replacement. Verified directly: stopped the standalone worker container, s
 the web container alone with the flag set, and confirmed a real trace was both ingested
 and fully processed by that single process.
 
+## Go gateway (`gateway/`) — implemented, verified end to end; CI not yet run
+
+A separate Go service (own `go.mod`, stdlib plus `prometheus/client_golang`) that sits in front of an
+OpenAI-compatible provider API as a reverse proxy and reports each call to Tracewell as a generation, with
+network timing. It talks to Tracewell **only through the existing public HTTP API**
+(`POST /api/public/ingestion`, Basic auth with the project key pair). Nothing in the Next.js app, the
+ingestion contract, the schema or the worker was changed to support it.
+
+```
+client --> gateway --> provider
+              |
+              | Observation (bounded in-memory queue; drop + count when full)
+              v
+         batching workers --> POST /api/public/ingestion --> (staging table -> worker -> Observation)
+```
+
+Decisions worth knowing, each tied to something verified in this repository:
+
+- **A trace is its own root observation** (`id == traceId`, no parent), so a call that starts a new trace
+  sends `trace-create` + `generation-create` + `generation-update`; a call that sets
+  `X-Tracewell-Trace-Id` skips the `trace-create` and attaches under the given trace/parent.
+- **All metadata goes on the `generation-update` only.** The worker replaces `Observation.metadata`
+  wholesale (it merges other fields), so splitting metadata across the create and update events would let
+  one erase the other. Confirmed by reading `worker/processors/ingestion.ts` and by the E2E run.
+- **Unknown is never zero.** Token usage is sent only when the provider reported it; a DNS/connect/TLS phase
+  is sent only when it happened (a reused keep-alive connection has none). The gateway has no price table, so
+  it never sends `costDetails` (Tracewell then shows usage but no cost for these calls).
+- **The request path never waits for Tracewell.** Observations go through a bounded queue; when it is full the
+  observation is dropped and counted. Verified against the real stack: 3,000 calls, 0 client errors, 1,034
+  delivered + 1,966 dropped, exactly 1,034 generations stored.
+- **Ingestion is idempotent per event id**, so the reporter retries (exponential backoff, full jitter) only the
+  events that failed retryably, including per-event 5xx inside a 207 response.
+- **The provider key never leaves the gateway path.** `Authorization` and other credential headers are always
+  redacted, bodies are off by default, and the Tracewell secret key type refuses to print itself.
+
+Verified (see `gateway/RESULTS.md` for numbers and raw output): 151 passing tests under `-race`; a scripted E2E
+(15 assertions) against Postgres + Redis + the web app + the worker; SSE passthrough that fails if the proxy
+buffers (mutation-checked); real SIGTERM flush in the container; load tests with zero errors; an independent
+code review whose findings were each verified and fixed with a test.
+
+Not verified, or known gaps: the GitHub Actions workflow has never run; timing against a real HTTPS provider or
+HTTP/2 (only local servers); streamed usage exists only when the client asks for it (`include_usage`) and only in
+OpenAI shape; the queue is in memory, so a crash loses unsent events; no authentication of the gateway's own
+callers; the dashboard does not yet render the timing breakdown (it is visible as JSON metadata on the
+generation); under sustained load above Tracewell's ingest rate the gateway drops events by design.
+
 ## Known MVP gaps (explicit, not hidden)
 
 - No rate limiting yet. Langfuse's own self-host rate limiting is a no-op by default

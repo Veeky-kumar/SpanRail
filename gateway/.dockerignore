@@ -1,0 +1,6 @@
+bin/
+*.exe
+docs/
+scripts/
+*.md
+.git

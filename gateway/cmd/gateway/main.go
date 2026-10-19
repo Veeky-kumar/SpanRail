@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"log"
 	"net/http"
@@ -24,6 +25,14 @@ func main() {
 	cfg, err := config.Load(os.Getenv)
 	if err != nil {
 		log.Fatalf("config error: %v", err)
+	}
+
+	// `gateway healthcheck` is for container health checks (the image has no curl).
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		if err := server.Probe(cfg.ListenAddr, cfg.TLSCertFile != ""); err != nil {
+			log.Fatalf("unhealthy: %v", err)
+		}
+		return
 	}
 
 	m := metrics.New()
@@ -67,8 +76,18 @@ func main() {
 	defer stop()
 
 	errc := make(chan error, 1)
-	go func() { errc <- srv.ListenAndServe() }()
-	log.Printf("gateway listening on %s, upstream %s", cfg.ListenAddr, cfg.Upstream.Redacted())
+	if cfg.TLSCertFile != "" {
+		// Load the pair up front so a bad path or mismatched key fails at startup, not on first request.
+		cert, err := tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKeyFile)
+		if err != nil {
+			log.Fatalf("tls: %v", err)
+		}
+		srv.TLSConfig = &tls.Config{Certificates: []tls.Certificate{cert}, MinVersion: tls.VersionTLS12}
+		go func() { errc <- srv.ListenAndServeTLS("", "") }()
+	} else {
+		go func() { errc <- srv.ListenAndServe() }()
+	}
+	log.Printf("gateway listening on %s (tls=%v), upstream %s", cfg.ListenAddr, cfg.TLSCertFile != "", cfg.Upstream.Redacted())
 
 	select {
 	case err := <-errc:

@@ -229,3 +229,39 @@ Lesson: assert that an edit applied, and debug from evidence (goroutine dump) ra
 
 ### Pieces to type yourself
 `traceLink` and the recover/record/re-panic block in `observe.Handler`, and `classify207` in `report/sender.go`.
+
+## Milestone 6: packaging, benchmarks and the bug measurement found
+
+### Docker
+- **Multi-stage build.** Stage 1 (`golang:alpine`) compiles; stage 2 (`distroless/static:nonroot`) holds
+  only the binary. `CGO_ENABLED=0` makes the binary static (no libc), so it runs on an image with no shell,
+  no package manager and no curl. It runs as uid 65532, not root.
+- **`go.mod` and `go.sum` are copied before the source** so Docker caches the dependency download
+  until they change.
+- **No curl for `HEALTHCHECK`**, so the binary has a `healthcheck` subcommand that GETs its own `/healthz`.
+- **SIGTERM matters in containers.** `docker stop` sends SIGTERM, waits a grace period, then SIGKILL.
+  Verified with a real container: with `FLUSH_INTERVAL=1h` (so only shutdown could deliver) 0 events had
+  reached the sink before `docker stop` and all 30 had after. Gotcha found on the way: this machine's
+  Docker has a **1 second** default stop timeout, so a plain `docker stop` killed the process mid-flush
+  (exit 137). The compose file sets `stop_grace_period: 40s`.
+
+### The benchmark found a real bug
+The first benchmark run showed thousands of failed requests through the gateway at concurrency 32 and
+none when calling the upstream directly. Hypothesis: Go's `DefaultTransport` keeps only **2** idle
+connections per host. I proved it with a failing test first (58 upstream connections for 4 rounds of
+16 concurrent requests, expected about 16), then set `MaxIdleConnsPerHost`. For a gateway this matters
+twice: every extra connection is a TCP+TLS handshake added to a user's call, and under load it exhausts
+local ports. No unit test had caught it because it only appears with concurrency.
+
+### Interview questions
+1. *Why distroless/scratch instead of alpine?* Smaller attack surface; nothing to exec into.
+2. *Why `go mod download` as its own layer?* Build cache.
+3. *What is the difference between `Idle` and `Active` connections in a Go transport and why does the per-host cap matter?*
+   Idle ones are kept for reuse; the cap decides how many survive between bursts.
+4. *How do you know your benchmark is trustworthy?* Zero errors, repeated runs shown unaltered, same
+   machine/method for baseline and subject, and awareness of clock resolution and CPU contention.
+5. *What happens to in-flight reports on `kill -9`?* Lost: the queue is in memory. That is a documented trade-off.
+
+### Pieces to type yourself
+The `Dockerfile`, the `MaxIdleConnsPerHost` block in `proxy.New` with its comment, and the shutdown
+sequence in `main` (you will be asked to draw it).

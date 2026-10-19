@@ -16,6 +16,9 @@ import (
 	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
 )
 
+// maxIdleConnsPerHost bounds the keep-alive pool to the (single) upstream host.
+const maxIdleConnsPerHost = 256
+
 // New returns a handler that forwards every request to upstream. The upstream is fixed
 // configuration: nothing in the incoming request can redirect where traffic goes.
 //
@@ -24,6 +27,12 @@ import (
 func New(upstream *url.URL, headerTimeout time.Duration) http.Handler {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.ResponseHeaderTimeout = headerTimeout
+	// http.DefaultTransport keeps only 2 idle connections per host. A gateway talks to one
+	// upstream host on behalf of many callers, so with more than 2 concurrent requests it
+	// would keep closing and reopening connections, paying a TCP (and TLS) handshake on most
+	// calls and, under load, running out of local ports. Keep a pool sized for real concurrency.
+	transport.MaxIdleConns = 0 // no global cap; the per-host cap below is what matters
+	transport.MaxIdleConnsPerHost = maxIdleConnsPerHost
 
 	return &httputil.ReverseProxy{
 		// Rewrite (not the older Director) gives us a fresh outbound request and strips

@@ -29,6 +29,14 @@ services:
     ports:
       - "3000:3000"
 
+  # In the production overlay the gateway starts with the stack and talks to `web` directly.
+  gateway:
+    profiles: !reset []
+    depends_on:
+      - web
+    environment:
+      TRACEWELL_BASE_URL: http://web:3000
+
   worker:
     build:
       context: .

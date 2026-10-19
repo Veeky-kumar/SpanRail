@@ -109,6 +109,13 @@ same thing `npm run dev` / `npm run worker` do locally, packaged for a real depl
 See [docker-compose.prod.yml](./docker-compose.prod.yml) and the Dockerfiles under
 [docker/](./docker) for exactly what ships.
 
+## Go gateway (optional)
+
+[`gateway/`](./gateway) is a small Go reverse proxy that sits in front of an OpenAI-compatible API and
+reports every call to Tracewell as a generation, including DNS / connect / TLS / time-to-first-byte timings.
+It uses only the public ingestion API. See [gateway/README.md](./gateway/README.md); measured results are in
+[gateway/RESULTS.md](./gateway/RESULTS.md).
+
 ## Known limitations
 
 Tracked in detail in [ARCHITECTURE.md](./ARCHITECTURE.md#known-mvp-gaps-explicit-not-hidden),
