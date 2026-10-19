@@ -41,3 +41,26 @@ func TestHeadersTruncatesLongValues(t *testing.T) {
 		t.Errorf("len = %d", len(got))
 	}
 }
+
+func TestSecretLookingHeaderNamesAreRedactedWithoutBeingListed(t *testing.T) {
+	h := http.Header{}
+	for _, name := range []string{"X-Auth-Token", "X-Amz-Security-Token", "X-Session-Id", "My-Secret", "X-Password", "X-Access-Key-Id", "Proxy-Authenticate"} {
+		h.Set(name, "sensitive-value")
+	}
+	h.Set("X-Request-Id", "req-1")
+	h.Set("Content-Type", "application/json")
+	h.Set("User-Agent", "openai-python/1.0")
+	got := Headers(h, nil)
+	for name := range h {
+		switch name {
+		case "X-Request-Id", "Content-Type", "User-Agent":
+			if got[name] == Placeholder {
+				t.Errorf("%s should not be redacted", name)
+			}
+		default:
+			if got[name] != Placeholder {
+				t.Errorf("%s = %q, want redacted (name looks like a credential)", name, got[name])
+			}
+		}
+	}
+}

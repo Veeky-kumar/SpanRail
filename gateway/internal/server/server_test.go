@@ -131,3 +131,26 @@ func TestProbeAddrWithWildcardHost(t *testing.T) {
 		t.Errorf("%v", err)
 	}
 }
+
+func TestOpsHandlerServesOnlyOpsEndpoints(t *testing.T) {
+	metricsH := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("m")) })
+	srv := httptest.NewServer(OpsHandler(Ops{Metrics: metricsH, Ready: func() bool { return true }}))
+	defer srv.Close()
+	for path, want := range map[string]int{"/healthz": 200, "/readyz": 200, "/metrics": 200, "/v1/chat/completions": 404} {
+		resp, err := http.Get(srv.URL + path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Errorf("%s = %d, want %d", path, resp.StatusCode, want)
+		}
+	}
+}
+
+func TestNewLimitsHeaderSize(t *testing.T) {
+	s := New(":0", http.NotFoundHandler())
+	if s.MaxHeaderBytes <= 0 || s.MaxHeaderBytes > 128<<10 {
+		t.Errorf("MaxHeaderBytes = %d; the 1 MiB default lets each connection pin a lot of memory", s.MaxHeaderBytes)
+	}
+}

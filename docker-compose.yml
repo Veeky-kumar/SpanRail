@@ -45,8 +45,15 @@ services:
       DRAIN_DELAY: 3s
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    # Loopback only: the gateway has no caller authentication and speaks plain HTTP, and clients
+    # send their provider API keys through it. Put a TLS terminator / auth in front before
+    # exposing it beyond this machine (or mount a cert and set TLS_CERT_FILE / TLS_KEY_FILE).
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     # Must exceed DRAIN_DELAY + SHUTDOWN_TIMEOUT (+ the final flush), or Docker kills it mid-flush.
     stop_grace_period: 40s
 

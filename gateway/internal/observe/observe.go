@@ -86,20 +86,16 @@ func Handler(next http.Handler, o Options) http.Handler {
 		var traceID, parentID string
 		if report {
 			traceID, parentID = traceLink(r.Header)
-			// A client that promises a body and then goes quiet must not pin this goroutine:
-			// bound the prefix read with a deadline.
-			rc := http.NewResponseController(w)
-			if o.PeekTimeout > 0 {
-				_ = rc.SetReadDeadline(time.Now().Add(o.PeekTimeout))
+			// A client that promises a body and then goes quiet must not pin this goroutine or
+			// an upstream connection. The guard turns "no bytes for PeekTimeout" into an error
+			// on every read of the body (the peek and the later forwarding), while a slow but
+			// steadily progressing upload is left alone.
+			if o.PeekTimeout > 0 && r.Body != nil && r.Body != http.NoBody {
+				ctx, flag := capture.WithStallFlag(r.Context())
+				r = r.WithContext(ctx)
+				r.Body = &stallGuard{body: r.Body, rc: http.NewResponseController(w), timeout: o.PeekTimeout, flag: flag}
 			}
-			var peekErr error
-			info, peekErr = capture.PeekRequest(r, o.PeekBytes) // the error also replays to the upstream
-			// Lift the deadline so streaming bodies are unaffected, but only if the peek
-			// succeeded. After a failed peek leave it expired: net/http would otherwise try to
-			// drain the rest of the promised body from the silent client, with no time limit.
-			if o.PeekTimeout > 0 && peekErr == nil {
-				_ = rc.SetReadDeadline(time.Time{})
-			}
+			info, _ = capture.PeekRequest(r, o.PeekBytes) // a read error also replays to the upstream
 			if o.CaptureHeaders {
 				hdr = redact.Headers(r.Header, o.RedactHeaders)
 			}
@@ -144,7 +140,7 @@ func Handler(next http.Handler, o Options) http.Handler {
 			Name:                nameFromPath(r.URL.Path),
 			Model:               model,
 			Method:              r.Method,
-			Path:                r.URL.Path,
+			Path:                capPath(r.URL.Path),
 			Start:               start,
 			End:                 end,
 			Status:              status,
@@ -183,6 +179,17 @@ func traceLink(h http.Header) (traceID, parentID string) {
 		}
 	}
 	return
+}
+
+// maxPathLen bounds the request path copied into reported events. The path is chosen by the
+// caller, and one oversized value inside a batch could make Tracewell refuse the whole batch.
+const maxPathLen = 256
+
+func capPath(p string) string {
+	if len(p) <= maxPathLen {
+		return p
+	}
+	return strings.ToValidUTF8(p[:maxPathLen], "")
 }
 
 // nameFromPath turns /v1/chat/completions into chat.completions.

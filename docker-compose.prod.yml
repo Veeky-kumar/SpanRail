@@ -29,9 +29,12 @@ services:
     ports:
       - "3000:3000"
 
-  # In the production overlay the gateway starts with the stack and talks to `web` directly.
+  # Still opt-in (profile `gateway`, inherited from the base file): it needs a project API key,
+  # which can only be created after the web app is running, so starting it automatically would
+  # just crash-loop on a fresh deployment. Start it with:
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile gateway up -d gateway
+  # Here it talks to `web` directly over the compose network.
   gateway:
-    profiles: !reset []
     depends_on:
       - web
     environment:

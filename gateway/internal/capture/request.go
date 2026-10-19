@@ -83,3 +83,11 @@ func truncateModel(s string) string {
 type errReader struct{ err error }
 
 func (e errReader) Read([]byte) (int, error) { return 0, e.err }
+
+// ClientBodyError marks a failure while reading the *client's* request body (a stall, a reset
+// connection). It lets the proxy answer 408/400 instead of blaming the upstream for a problem
+// the upstream never saw.
+type ClientBodyError struct{ Err error }
+
+func (e *ClientBodyError) Error() string { return "reading client request body: " + e.Err.Error() }
+func (e *ClientBodyError) Unwrap() error { return e.Err }

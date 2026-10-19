@@ -265,3 +265,50 @@ local ports. No unit test had caught it because it only appears with concurrency
 ### Pieces to type yourself
 The `Dockerfile`, the `MaxIdleConnsPerHost` block in `proxy.New` with its comment, and the shutdown
 sequence in `main` (you will be asked to draw it).
+
+## Review round 2: hardening (code review + security review)
+
+Two independent reviews of the finished branch found no key leak, no SSRF and no header injection, but
+real availability and deployment problems. Each was checked against the code first; three were not fixed
+(documented instead: Anthropic/Responses usage shapes, slow-reader DoS, `HTTPS_PROXY` honoured).
+
+### The ones worth being able to explain
+- **Slowloris on the request body.** The first fix (`PEEK_TIMEOUT` as one deadline) was wrong: it killed a
+  slow but progressing upload. The correct tool is a **stall guard**: set the read deadline to `now+timeout`
+  *before every Read*, so it only fires when nothing arrives for that long. It also covers the body read
+  *after* the peek, which the first version left unprotected.
+- **A read deadline cancels the request context.** When a connection read times out, `net/http` cancels the
+  request's context. `ReverseProxy` then reports `context.Canceled`, my error handler read that as "client went
+  away", wrote nothing, and `net/http` sent a bare **200**. The stalled client got a success status. Fix: record
+  the stall in a flag stored *on the context* (it survives cancellation) and check it first -> 408.
+- **`Accept-Encoding: br`.** Browsers and Node offer Brotli; the gateway only reads gzip/identity, so usage
+  would silently vanish for the most common real clients. The gateway now asks the provider for gzip *only if the
+  client accepts gzip*, so the client can always decode what it receives.
+- **Defaults that bite.** The prod compose overlay auto-started the gateway; with no project key (they only exist
+  after the web app is running) it crash-looped. It is now opt-in everywhere, published on `127.0.0.1` only, with
+  a read-only filesystem, no capabilities and `no-new-privileges`.
+- **`govulncheck` reported 9 standard-library vulnerabilities** in the Go version I had installed (1.27.0), all
+  fixed in 1.27.2. `go.mod` now requires 1.27.2, the Dockerfile pins it (its image sets `GOTOOLCHAIN=local`, so an
+  older compiler fails loudly), and CI runs `govulncheck`. A scan of the final code reports none.
+- **Don't let callers inflate what you send onward.** A caller chooses the request path; an enormous one went into
+  two fields of every reported event, and a rejected batch loses *other* users' events. The reported path is capped.
+
+### Milestone 7: showing the timing in the trace view
+`src/lib/gatewayTiming.ts` is a pure function that turns `metadata.gateway.timingMs` into ordered phases (DNS,
+connect, TLS, upstream wait, transfer) and is unit-tested (13 tests). `GatewayTiming.tsx` renders a one-hue bar
+plus a table, and renders **nothing** for observations without gateway timing, so existing traces are unchanged.
+Per the dataviz rules, colour is never the only carrier (every segment is also a table row with its value and
+share) and a phase that did not happen is omitted, not shown as zero.
+
+### Interview questions
+1. *Why check the stall flag before `context.Canceled`?* Because the stall itself causes the cancellation.
+2. *Why a deadline refreshed per Read instead of one absolute deadline?* Distinguishes slow from stalled.
+3. *Why is a write deadline not used for slow readers?* A stale deadline would break the final flush of an
+   idle SSE stream; mitigation belongs in the load balancer.
+4. *What does `cap_drop: ALL` + `read_only` buy you for a static Go binary?* It cannot write anywhere or gain
+   privileges even if an attacker finds a bug.
+5. *Why is a vulnerability scanner part of CI for a service with no third-party code?* The standard library and
+   toolchain are dependencies too; 9 findings were in `net/http` and `crypto/tls`.
+
+### Pieces to type yourself
+`stallGuard.Read`, `preferGzip`, and the order of checks in `proxy.errorHandler`.

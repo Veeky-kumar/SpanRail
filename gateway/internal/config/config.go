@@ -19,6 +19,7 @@ type Config struct {
 	ShutdownTimeout time.Duration // max time to finish in-flight work on SIGTERM
 	TLSCertFile     string        // with TLSKeyFile: serve HTTPS; empty = plain HTTP
 	TLSKeyFile      string
+	OpsAddr         string        // optional separate listener for /healthz, /readyz, /metrics
 	DrainDelay      time.Duration // after SIGTERM, keep serving while /readyz says 503, so balancers notice
 	PeekTimeout     time.Duration // max time a client may stall while its request prefix is read
 
@@ -90,13 +91,13 @@ func Load(getenv func(string) string) (Config, error) {
 		return c, err
 	}
 
-	if c.PeekBytes, err = size(getenv, "PEEK_BYTES", 64<<10); err != nil {
+	if c.PeekBytes, err = size(getenv, "PEEK_BYTES", 64<<10, 1<<20); err != nil {
 		return c, err
 	}
-	if c.ParseMaxBytes, err = size(getenv, "PARSE_MAX_BYTES", 1<<20); err != nil {
+	if c.ParseMaxBytes, err = size(getenv, "PARSE_MAX_BYTES", 1<<20, 16<<20); err != nil {
 		return c, err
 	}
-	maxBody, err := size(getenv, "CAPTURE_MAX_BYTES", 16<<10)
+	maxBody, err := size(getenv, "CAPTURE_MAX_BYTES", 16<<10, 1<<20)
 	if err != nil {
 		return c, err
 	}
@@ -112,6 +113,7 @@ func Load(getenv func(string) string) (Config, error) {
 			c.RedactHeaders = append(c.RedactHeaders, h)
 		}
 	}
+	c.OpsAddr = getenv("OPS_ADDR")
 	c.TLSCertFile, c.TLSKeyFile = getenv("TLS_CERT_FILE"), getenv("TLS_KEY_FILE")
 	if (c.TLSCertFile == "") != (c.TLSKeyFile == "") {
 		return c, errors.New("TLS_CERT_FILE and TLS_KEY_FILE must be set together")
@@ -157,7 +159,7 @@ func loadReporting(getenv func(string) string, c Config) (Config, error) {
 	if c.BatchSize, err = count(getenv, "BATCH_SIZE", 50, 500); err != nil {
 		return c, err
 	}
-	if c.QueueSize, err = count(getenv, "QUEUE_SIZE", 1000, 1_000_000); err != nil {
+	if c.QueueSize, err = count(getenv, "QUEUE_SIZE", 1000, 100_000); err != nil {
 		return c, err
 	}
 	if c.ReportWorkers, err = count(getenv, "REPORT_WORKERS", 2, 64); err != nil {
@@ -191,7 +193,7 @@ func count(getenv func(string) string, key string, def, max int) (int, error) {
 	return n, nil
 }
 
-func size(getenv func(string) string, key string, def int64) (int64, error) {
+func size(getenv func(string) string, key string, def, max int64) (int64, error) {
 	raw := getenv(key)
 	if raw == "" {
 		return def, nil
@@ -200,8 +202,8 @@ func size(getenv func(string) string, key string, def int64) (int64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", key, err)
 	}
-	if n <= 0 || n > 1<<30 {
-		return 0, fmt.Errorf("%s must be between 1 and %d, got %s", key, 1<<30, raw)
+	if n <= 0 || n > max {
+		return 0, fmt.Errorf("%s must be between 1 and %d, got %s", key, max, raw)
 	}
 	return n, nil
 }

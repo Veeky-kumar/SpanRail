@@ -1,6 +1,7 @@
 package observe
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -493,5 +495,91 @@ func TestStalledRequestBodyDoesNotHangTheGateway(t *testing.T) {
 	var ne net.Error
 	if errors.As(err, &ne) && ne.Timeout() {
 		t.Fatalf("gateway still waiting on the stalled client after %v", time.Since(start))
+	}
+}
+
+// A slow link is not a stall: as long as bytes keep arriving, the request must go through.
+func TestSlowButProgressingUploadSucceeds(t *testing.T) {
+	var got string
+	gw, _ := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got = string(b)
+	}), func(o *Options) { o.PeekTimeout = 300 * time.Millisecond })
+
+	body := `{"model":"slow","pad":"` + strings.Repeat("x", 28) + `"}` // 50 bytes
+	conn, err := net.Dial("tcp", strings.TrimPrefix(gw.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_, _ = io.WriteString(conn, "POST /v1/x HTTP/1.1\r\nHost: x\r\nContent-Length: "+strconv.Itoa(len(body))+"\r\n\r\n")
+	for i := 0; i < len(body); i += 5 { // 5 bytes every 120ms: 1.2s in total, well over the 300ms timeout
+		end := min(i+5, len(body))
+		_, _ = io.WriteString(conn, body[i:end])
+		time.Sleep(120 * time.Millisecond)
+	}
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 || got != body {
+		t.Errorf("status=%d, upstream got %q (want the full %d-byte body)", resp.StatusCode, got, len(body))
+	}
+}
+
+// After the prefix has been read, a client that stops sending must still be cut off.
+func TestStallAfterThePeekIsCutOff(t *testing.T) {
+	gw, _ := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Like a real provider: a truncated body is a client error.
+		if _, err := io.Copy(io.Discard, r.Body); err != nil {
+			http.Error(w, "truncated body", http.StatusBadRequest)
+		}
+	}), func(o *Options) { o.PeekTimeout = 200 * time.Millisecond; o.PeekBytes = 4 })
+
+	conn, err := net.Dial("tcp", strings.TrimPrefix(gw.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_, _ = io.WriteString(conn, "POST /v1/x HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n0123456789") // then silence
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	start := time.Now()
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatalf("no response %v after the client stalled: %v", time.Since(start), err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusRequestTimeout {
+		t.Errorf("status = %d, want 408: the client stalled, which is not a success and not the upstream's fault", resp.StatusCode)
+	}
+}
+
+func TestReportedPathIsCapped(t *testing.T) {
+	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil)
+	post(t, gw.URL+"/v1/"+strings.Repeat("a", 6000), `{}`, nil).Body.Close()
+	o := sk.next(t)
+	if len(o.Path) > 256 || len(o.Name) > 80 {
+		t.Errorf("path %d bytes, name %d bytes; a caller-controlled path must not bloat the events sent to Tracewell", len(o.Path), len(o.Name))
+	}
+}
+
+type hijackableWriter struct{ *httptest.ResponseRecorder }
+
+func (hijackableWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	c, _ := net.Pipe()
+	return c, nil, nil
+}
+
+func TestHijackedUpgradeIsRecordedAs101NotClientClosed(t *testing.T) {
+	rec := newRecorder(hijackableWriter{httptest.NewRecorder()}, Options{}, true)
+	conn, _, err := http.NewResponseController(rec).Hijack()
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.Close()
+	if rec.status != http.StatusSwitchingProtocols {
+		t.Errorf("status = %d, want 101 (ReverseProxy hijacks for Upgrade responses without calling WriteHeader)", rec.status)
 	}
 }

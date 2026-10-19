@@ -3,6 +3,7 @@ package redact
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 )
 
@@ -24,6 +25,11 @@ var alwaysRedacted = map[string]bool{
 	"openai-organization": true,
 }
 
+// looksSecret catches credential-bearing headers that no list can enumerate (X-Auth-Token,
+// X-Amz-Security-Token, X-Session-Id, ...). It deliberately over-redacts: a false positive
+// hides a harmless value, a false negative would leak a key.
+var looksSecret = regexp.MustCompile(`key|token|secret|auth|cookie|session|passw|credential`)
+
 // Headers flattens h to name -> value, redacting the built-in sensitive names plus extra
 // (case-insensitive). Multiple values are joined with ", " and long values are truncated.
 func Headers(h http.Header, extra []string) map[string]string {
@@ -35,7 +41,7 @@ func Headers(h http.Header, extra []string) map[string]string {
 	for name, vals := range h {
 		key := http.CanonicalHeaderKey(name)
 		lower := strings.ToLower(name)
-		if alwaysRedacted[lower] || deny[lower] {
+		if alwaysRedacted[lower] || deny[lower] || looksSecret.MatchString(lower) {
 			out[key] = Placeholder
 			continue
 		}

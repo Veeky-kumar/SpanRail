@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { SerializedTreeNode, SerializedObservation } from "@/server/serialize";
 import { formatDuration } from "@/lib/format";
+import { GatewayTiming } from "@/components/GatewayTiming";
 
 function flatten(nodes: SerializedTreeNode[], expanded: Set<string>, out: SerializedTreeNode[] = []) {
   for (const n of nodes) {
@@ -199,6 +200,7 @@ function ObservationDetail({ observation }: { observation: SerializedObservation
 
       <JsonBlock label="Input" value={observation.input} />
       <JsonBlock label="Output" value={observation.output} />
+      <GatewayTiming metadata={observation.metadata} />
       <JsonBlock label="Metadata" value={observation.metadata} />
       <JsonBlock label="Usage" value={observation.usageDetails} />
       <JsonBlock label="Cost breakdown" value={observation.costDetails} />

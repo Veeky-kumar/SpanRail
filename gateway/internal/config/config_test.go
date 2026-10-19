@@ -244,3 +244,37 @@ func TestLoad(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadOpsAddrAndSizeCaps(t *testing.T) {
+	base := map[string]string{"UPSTREAM_URL": "http://x"}
+	with := func(kv ...string) map[string]string {
+		m := map[string]string{}
+		for k, v := range base {
+			m[k] = v
+		}
+		for i := 0; i < len(kv); i += 2 {
+			m[kv[i]] = kv[i+1]
+		}
+		return m
+	}
+	c, err := Load(env(with("OPS_ADDR", "127.0.0.1:9090")))
+	if err != nil || c.OpsAddr != "127.0.0.1:9090" {
+		t.Fatalf("OPS_ADDR: %+v %v", c, err)
+	}
+	if c, _ = Load(env(base)); c.OpsAddr != "" {
+		t.Errorf("OPS_ADDR must default to empty (ops share the main listener): %q", c.OpsAddr)
+	}
+	for _, bad := range [][]string{
+		{"PEEK_BYTES", "2097152"},       // > 1 MiB
+		{"PARSE_MAX_BYTES", "33554432"}, // > 16 MiB
+		{"CAPTURE_MAX_BYTES", "2097152"},
+	} {
+		if _, err := Load(env(with(bad...))); err == nil || !strings.Contains(err.Error(), bad[0]) {
+			t.Errorf("%v: err = %v, want a size-cap error naming %s", bad, err, bad[0])
+		}
+	}
+	keys := map[string]string{"TRACEWELL_PUBLIC_KEY": "p", "TRACEWELL_SECRET_KEY": "s", "UPSTREAM_URL": "http://x", "QUEUE_SIZE": "100001"}
+	if _, err := Load(env(keys)); err == nil || !strings.Contains(err.Error(), "QUEUE_SIZE") {
+		t.Errorf("QUEUE_SIZE above 100000 should fail, got %v", err)
+	}
+}

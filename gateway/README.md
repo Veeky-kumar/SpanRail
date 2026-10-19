@@ -29,9 +29,12 @@ TRACEWELL_BASE_URL=http://localhost:3000 \
 TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-... \
 go run ./cmd/gateway
 
-# or Docker (from the repo root; the gateway service is behind a compose profile)
+# or Docker (from the repo root; the gateway is opt-in via the `gateway` compose profile and is
+# published on 127.0.0.1:8080 only)
 export TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-...
 docker compose --profile gateway up -d --build gateway
+# with the production overlay:
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile gateway up -d --build gateway
 ```
 
 Point an OpenAI-compatible client at it by changing only the base URL. Your provider key stays in
@@ -92,6 +95,11 @@ unknown: it is omitted, never `0`. The gateway has no price table, so it never s
 | `GET /metrics` | Prometheus metrics (`tracewell_gateway_*`): requests by status, latency, per-phase histograms, queue depth, dropped events, flush failures |
 | anything else | proxied to the upstream |
 
+By default these three share the proxy port, which means a `GET /healthz`, `/readyz` or `/metrics` aimed
+at the upstream is answered by the gateway instead. Set `OPS_ADDR` (for example `127.0.0.1:9090`) to
+serve them on a separate listener: the public port then proxies every path untouched, and the metrics
+stay on a private interface. The container health check follows `OPS_ADDR` automatically.
+
 ## Configuration
 
 All settings are environment variables. The gateway refuses to start with a clear message if one is invalid.
@@ -102,6 +110,7 @@ All settings are environment variables. The gateway refuses to start with a clea
 | `LISTEN_ADDR` | `:8080` | listen address |
 | `UPSTREAM_TIMEOUT` | `60s` | wait for upstream **response headers** (does not cut long streams) |
 | `SHUTDOWN_TIMEOUT` | `15s` | time to finish in-flight requests, and again to flush reports, on SIGTERM |
+| `OPS_ADDR` | unset | separate listener for `/healthz`, `/readyz`, `/metrics` (plain HTTP); unset = same port as the proxy |
 | `DRAIN_DELAY` | `0` | after SIGTERM keep serving this long with `/readyz` = 503 so a load balancer notices |
 | `TLS_CERT_FILE` / `TLS_KEY_FILE` | unset | serve HTTPS (both or neither); TLS 1.2+ |
 | `REPORT_ENABLED` | `true` | `false` = plain proxy, no Tracewell keys needed |
@@ -109,17 +118,17 @@ All settings are environment variables. The gateway refuses to start with a clea
 | `TRACEWELL_PUBLIC_KEY` / `TRACEWELL_SECRET_KEY` | required when reporting | project API keys (the secret is never printed or logged) |
 | `BATCH_SIZE` | `50` (max 500) | events per ingestion request (a call is 2-3 events) |
 | `FLUSH_INTERVAL` | `2s` | send a partial batch at least this often |
-| `QUEUE_SIZE` | `1000` | calls buffered; beyond this new ones are dropped and counted |
+| `QUEUE_SIZE` | `1000` (max 100000) | calls buffered; beyond this new ones are dropped and counted |
 | `REPORT_WORKERS` | `2` | background senders |
 | `REPORT_MAX_ATTEMPTS` | `5` | tries per batch (exponential backoff with full jitter) |
 | `REPORT_TIMEOUT` | `10s` | per HTTP attempt to Tracewell |
-| `PEEK_BYTES` | `65536` | request-body prefix read to find `model` |
-| `PEEK_TIMEOUT` | `10s` | how long a client may stall while that prefix is read |
-| `PARSE_MAX_BYTES` | `1048576` | largest response held in memory to read `usage` from |
+| `PEEK_BYTES` | `65536` (max 1 MiB) | request-body prefix read to find `model` |
+| `PEEK_TIMEOUT` | `10s` | **stall** timeout for a POST body: the request fails (408) if no bytes arrive for this long. A slow but steadily progressing upload is not affected |
+| `PARSE_MAX_BYTES` | `1048576` (max 16 MiB) | largest response held in memory to read `usage` from |
 | `CAPTURE_BODIES` | `false` | also report request/response bodies (privacy: prompts leave your network) |
-| `CAPTURE_MAX_BYTES` | `16384` | cap on each reported body |
+| `CAPTURE_MAX_BYTES` | `16384` (max 1 MiB) | cap on each reported body |
 | `CAPTURE_HEADERS` | `false` | report request headers (redacted) |
-| `REDACT_HEADERS` | empty | extra header names to redact (comma-separated) |
+| `REDACT_HEADERS` | empty | extra header names to redact (comma-separated). Any header whose name contains `key`, `token`, `secret`, `auth`, `cookie`, `session`, `passw` or `credential` is always redacted |
 
 ## Development
 
@@ -143,8 +152,26 @@ bash scripts/bench.sh    # overhead and throughput measurement
 * **Responses that cannot be read.** Brotli/zstd-encoded or non-JSON responses, and JSON larger than
   `PARSE_MAX_BYTES`, have unknown usage. Only gzip is decoded.
 * **No cost.** There is no price table; Tracewell shows usage but no cost for these calls.
-* **The gateway does not authenticate callers.** Anyone who can reach it can send requests through
-  to the upstream with whatever key they supply. Keep it on a private network or put auth in front.
+* **The gateway does not authenticate callers, and it holds your Tracewell secret key.** Anyone who can
+  reach it can (a) send requests through to the upstream with whatever key they supply, (b) write
+  arbitrary generations into your Tracewell project, and (c) attach them to any trace whose id they know via
+  `X-Tracewell-Trace-Id`. Keep it on a private network or put authentication in front. The compose
+  file binds it to `127.0.0.1` for this reason.
+* **Plain HTTP carries your provider keys.** Clients send `Authorization: Bearer ...` through the
+  gateway, so use TLS (`TLS_CERT_FILE`/`TLS_KEY_FILE`, or a terminator in front) for any hop that
+  leaves a trusted network. `UPSTREAM_URL` and `TRACEWELL_BASE_URL` also accept `http://`; the compose
+  defaults use it only inside the compose network or to the host.
+* **`Accept-Encoding` is rewritten.** If the client accepts gzip, the gateway asks the provider for
+  `gzip` (clients like browsers and Node also offer br/zstd, which it cannot read usage from). A client
+  that does not accept gzip is left alone, and then usage is unknown for that call.
+* **Client addresses are not forwarded.** `X-Forwarded-*` and `Forwarded` are not sent to the provider.
+* **Slow readers.** A client that accepts a response very slowly can hold a connection and its
+  upstream connection open; there is deliberately no write timeout (it would cut idle SSE streams).
+  Limits on connections belong in the load balancer in front. Slow *senders* are handled (`PEEK_TIMEOUT`).
+* **Environment proxies.** The upstream HTTP client honours `HTTPS_PROXY`/`HTTP_PROXY`; if set in the
+  container environment, provider traffic (with your keys) goes through that proxy.
+* **Go version.** Build with Go 1.27.2 or newer. Earlier 1.27.x releases have standard-library
+  vulnerabilities that `govulncheck` reports for this code; `go.mod` requires 1.27.2.
 * **One upstream and one Tracewell project per instance.** Run several instances for several.
 * **At-most-once, in memory.** The report queue is not persisted. A crash or `kill -9` loses queued
   events, and a batch Tracewell rejects or cannot accept after all retries is lost (counted in

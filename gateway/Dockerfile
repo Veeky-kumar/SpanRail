@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1
 
 # ---- build: compile a static binary ----
-FROM golang:1.27-alpine AS build
+# 1.27.2 or newer is required (go.mod): earlier 1.27.x releases have known net/http, HTTP/2 and
+# crypto/tls vulnerabilities that govulncheck flags. The image sets GOTOOLCHAIN=local, so an
+# older compiler fails the build instead of silently producing a vulnerable binary.
+FROM golang:1.27.2-alpine AS build
 WORKDIR /src
 
 # Copy the module files first so the dependency download is cached until they change.

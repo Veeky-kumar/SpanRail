@@ -95,7 +95,7 @@ func (m *Metrics) ObserveRequest(status int, total time.Duration, t nettrace.Sna
 }
 
 // Value returns the current value of an unlabelled counter or gauge by metric name. It exists
-// so tests (and the shutdown log line) can read a metric without scraping text.
+// so tests can read a metric without scraping text. It is not used by the gateway itself.
 func (m *Metrics) Value(name string) (float64, error) {
 	families, err := m.reg.Gather()
 	if err != nil {

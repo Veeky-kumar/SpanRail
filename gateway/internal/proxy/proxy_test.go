@@ -1,11 +1,14 @@
 package proxy
 
 import (
+	"errors"
+	"github.com/veeky-ai/tracewell-gateway/internal/capture"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -183,5 +186,115 @@ func TestTracewellControlHeadersAreStripped(t *testing.T) {
 	}
 	if seen.Get("X-Other") != "kept" {
 		t.Error("unrelated headers must still be forwarded")
+	}
+}
+
+func TestAcceptEncodingOffersGzipWhenTheClientAcceptsIt(t *testing.T) {
+	// Real clients (browsers, Node) offer br/zstd. The gateway can only read usage from gzip or
+	// identity, so when the client accepts gzip, gzip is what the provider is asked for.
+	for _, tc := range []struct{ in, want string }{
+		{"gzip, deflate, br, zstd", "gzip"},
+		{"gzip;q=0.5, br", "gzip"},
+		{"br, gzip", "gzip"},
+		{"gzip", "gzip"},
+		{"br", "br"}, // client cannot decode gzip: leave it alone
+		{"identity", "identity"},
+	} {
+		var got string
+		up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { got = r.Header.Get("Accept-Encoding") }))
+		px := newProxy(t, up.URL, 5*time.Second)
+		req, _ := http.NewRequest(http.MethodGet, px.URL, nil)
+		req.Header.Set("Accept-Encoding", tc.in)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		up.Close()
+		if got != tc.want {
+			t.Errorf("client %q: upstream saw %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestClientAddressIsNotSharedWithTheProvider(t *testing.T) {
+	var seen http.Header
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }))
+	defer up.Close()
+	px := newProxy(t, up.URL, 5*time.Second)
+	req, _ := http.NewRequest(http.MethodGet, px.URL, nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.9")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for _, h := range []string{"X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "Forwarded"} {
+		if seen.Get(h) != "" {
+			t.Errorf("%s = %q reached the provider", h, seen.Get(h))
+		}
+	}
+}
+
+func TestDotDotIsRejectedWhenTheUpstreamHasAPathPrefix(t *testing.T) {
+	var called bool
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { called = true }))
+	defer up.Close()
+
+	// With a prefix, "/../x" could escape it (SetURL joins without cleaning).
+	prefixed := newProxy(t, up.URL+"/api", 5*time.Second)
+	req, _ := http.NewRequest(http.MethodGet, prefixed.URL, nil)
+	req.URL.Path = "/v1/../../admin"
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest || called {
+		t.Errorf("status=%d called=%v, want 400 and no upstream call", resp.StatusCode, called)
+	}
+
+	// Without a prefix there is nothing to escape, so the proxy stays transparent.
+	plain := newProxy(t, up.URL, 5*time.Second)
+	req2, _ := http.NewRequest(http.MethodGet, plain.URL, nil)
+	req2.URL.Path = "/v1/a/../b"
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if !called {
+		t.Error("no-prefix proxy must forward the request untouched")
+	}
+}
+
+type failingBody struct{ err error }
+
+func (f failingBody) Read([]byte) (int, error) { return 0, f.err }
+func (f failingBody) Close() error             { return nil }
+
+func TestClientBodyFailureIsNotBlamedOnTheUpstream(t *testing.T) {
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = io.Copy(io.Discard, r.Body) }))
+	defer up.Close()
+	u, _ := url.Parse(up.URL)
+	h := New(u, 5*time.Second)
+
+	for name, tc := range map[string]struct {
+		err  error
+		want int
+	}{
+		"client stalled":      {&capture.ClientBodyError{Err: os.ErrDeadlineExceeded}, http.StatusRequestTimeout},
+		"client reset socket": {&capture.ClientBodyError{Err: errors.New("connection reset")}, http.StatusBadRequest},
+	} {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/x", nil)
+			req.ContentLength = 100
+			req.Body = failingBody{tc.err}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != tc.want {
+				t.Errorf("status = %d, want %d (a client problem must not look like an upstream outage)", rec.Code, tc.want)
+			}
+		})
 	}
 }

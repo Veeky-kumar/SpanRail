@@ -96,6 +96,8 @@ func TestSenderStatusHandling(t *testing.T) {
 		{"unavailable", 503, true, false},
 		{"internal error", 500, true, false},
 		{"too many requests", 429, true, false},
+		{"request timeout from a proxy in front", 408, true, false},
+		{"too early", 425, true, false},
 		{"unauthorized", 401, false, true},
 		{"bad request", 400, false, true},
 		{"payload too large", 413, false, true},

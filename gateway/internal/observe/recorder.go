@@ -1,9 +1,11 @@
 package observe
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 
@@ -114,6 +116,18 @@ func (r *recorder) Flush() {
 		r.WriteHeader(http.StatusOK)
 	}
 	http.NewResponseController(r.ResponseWriter).Flush() //nolint:errcheck // best effort, same as http.Flusher
+}
+
+// Hijack is called (through http.ResponseController) by ReverseProxy to switch protocols, e.g.
+// a WebSocket upgrade. ReverseProxy hijacks without ever calling WriteHeader, so without this
+// the call would be recorded as status 0, i.e. "client closed".
+func (r *recorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	conn, rw, err := http.NewResponseController(r.ResponseWriter).Hijack()
+	if err == nil && !r.wroteHeader {
+		r.wroteHeader = true
+		r.status = http.StatusSwitchingProtocols
+	}
+	return conn, rw, err
 }
 
 // Unwrap exposes the underlying writer to http.ResponseController (hijack, deadlines).

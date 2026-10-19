@@ -29,7 +29,11 @@ func main() {
 
 	// `gateway healthcheck` is for container health checks (the image has no curl).
 	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
-		if err := server.Probe(cfg.ListenAddr, cfg.TLSCertFile != ""); err != nil {
+		addr, useTLS := cfg.ListenAddr, cfg.TLSCertFile != ""
+		if cfg.OpsAddr != "" { // /healthz then lives on the (plain HTTP) ops listener
+			addr, useTLS = cfg.OpsAddr, false
+		}
+		if err := server.Probe(addr, useTLS); err != nil {
 			log.Fatalf("unhealthy: %v", err)
 		}
 		return
@@ -67,15 +71,27 @@ func main() {
 	}
 
 	var draining atomic.Bool
-	srv := server.New(cfg.ListenAddr, server.Handler(
-		observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), opts),
-		server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }},
-	))
+	ops := server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }}
+	proxied := observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), opts)
+	var opsSrv *http.Server
+	var handler http.Handler
+	if cfg.OpsAddr != "" {
+		// Ops endpoints on their own listener: the public port then proxies every path untouched.
+		handler = proxied
+		opsSrv = server.New(cfg.OpsAddr, server.OpsHandler(ops))
+	} else {
+		handler = server.Handler(proxied, ops)
+	}
+	srv := server.New(cfg.ListenAddr, handler)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	errc := make(chan error, 1)
+	errc := make(chan error, 2)
+	if opsSrv != nil {
+		go func() { errc <- opsSrv.ListenAndServe() }()
+		log.Printf("ops endpoints on %s", cfg.OpsAddr)
+	}
 	if cfg.TLSCertFile != "" {
 		// Load the pair up front so a bad path or mismatched key fails at startup, not on first request.
 		cert, err := tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKeyFile)
@@ -108,6 +124,12 @@ func main() {
 	defer cancelHTTP()
 	if err := srv.Shutdown(httpCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Printf("shutdown: %v", err)
+	}
+	if opsSrv != nil {
+		// Kept up through the drain so /readyz could answer 503; closed last of the listeners.
+		if err := opsSrv.Shutdown(httpCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("ops shutdown: %v", err)
+		}
 	}
 	if reporter != nil {
 		flushCtx, cancelFlush := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)

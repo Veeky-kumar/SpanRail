@@ -73,7 +73,10 @@ func (s *HTTPSender) Send(ctx context.Context, events []Event) Result {
 		return classify207(events, data)
 	case resp.StatusCode >= 200 && resp.StatusCode < 300:
 		return Result{Accepted: len(events)}
-	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500:
+	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusRequestTimeout ||
+		resp.StatusCode == http.StatusTooEarly || resp.StatusCode >= 500:
+		// Transient, including a 408/425 from a proxy in front of Tracewell; retrying is safe
+		// because ingestion is idempotent per event id.
 		return Result{Retry: events, Err: fmt.Errorf("tracewell responded %d", resp.StatusCode)}
 	default: // 3xx (not followed), 400, 401, 403, 413, ...: the same request will fail again
 		return Result{Rejected: len(events), Err: fmt.Errorf("tracewell rejected batch with %d: %s", resp.StatusCode, snippet(data))}

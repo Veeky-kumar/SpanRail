@@ -40,6 +40,11 @@ jobs:
       - name: build
         run: go build ./...
 
+      # Fails on known vulnerabilities that the code actually reaches (stdlib included, so it
+      # also catches an outdated Go toolchain). Version pinned for reproducibility.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+
   docker:
     runs-on: ubuntu-latest
     needs: go

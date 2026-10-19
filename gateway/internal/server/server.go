@@ -27,27 +27,45 @@ type Ops struct {
 // to us without an orchestrator concluding the process is broken and killing it.
 func Handler(proxied http.Handler, ops Ops) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			switch r.URL.Path {
-			case "/healthz":
-				_, _ = w.Write([]byte("ok"))
-				return
-			case "/readyz":
-				if ops.Ready != nil && !ops.Ready() {
-					http.Error(w, "shutting down", http.StatusServiceUnavailable)
-					return
-				}
-				_, _ = w.Write([]byte("ready"))
-				return
-			case "/metrics":
-				if ops.Metrics != nil {
-					ops.Metrics.ServeHTTP(w, r)
-					return
-				}
-			}
+		if !ops.serve(w, r) {
+			proxied.ServeHTTP(w, r)
 		}
-		proxied.ServeHTTP(w, r)
 	})
+}
+
+// OpsHandler serves only the operational endpoints, for a separate listener (OPS_ADDR) that
+// can stay on a private interface while the proxy listener is exposed. Everything else is 404.
+func OpsHandler(ops Ops) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !ops.serve(w, r) {
+			http.NotFound(w, r)
+		}
+	})
+}
+
+// serve answers GET /healthz, /readyz and /metrics and reports whether it did.
+func (ops Ops) serve(w http.ResponseWriter, r *http.Request) bool {
+	if r.Method != http.MethodGet {
+		return false
+	}
+	switch r.URL.Path {
+	case "/healthz":
+		_, _ = w.Write([]byte("ok"))
+		return true
+	case "/readyz":
+		if ops.Ready != nil && !ops.Ready() {
+			http.Error(w, "shutting down", http.StatusServiceUnavailable)
+			return true
+		}
+		_, _ = w.Write([]byte("ready"))
+		return true
+	case "/metrics":
+		if ops.Metrics != nil {
+			ops.Metrics.ServeHTTP(w, r)
+			return true
+		}
+	}
+	return false
 }
 
 // New returns an http.Server with timeouts that protect against slow clients.
@@ -61,6 +79,8 @@ func New(addr string, h http.Handler) *http.Server {
 		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
+		// The default of 1 MiB per connection lets many idle sockets pin a lot of memory.
+		MaxHeaderBytes: 64 << 10,
 	}
 }
 
