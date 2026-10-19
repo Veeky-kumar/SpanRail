@@ -24,8 +24,10 @@ type Snapshot struct {
 	// TTFB is the time from the start of the round trip (before any DNS/connect/TLS)
 	// until the first byte of the upstream response arrived. It therefore includes the
 	// setup phases above plus the upstream's own processing time.
-	TTFB       *time.Duration
-	ConnReused bool
+	TTFB *time.Duration
+	// ConnReused is nil until a connection was actually obtained: a call that never got one
+	// (client stalled, DNS failure) must not read as "new connection".
+	ConnReused *bool
 }
 
 // Timings collects trace events for one request. Hooks run on several goroutines (the
@@ -46,7 +48,7 @@ type Timings struct {
 	tls      *time.Duration
 
 	ttfb   *time.Duration
-	reused bool
+	reused *bool
 }
 
 // New returns an empty Timings using the real clock.
@@ -118,7 +120,9 @@ func (t *Timings) clientTrace() *httptrace.ClientTrace {
 				}
 			})
 		},
-		GotConn: func(info httptrace.GotConnInfo) { t.lock(func() { t.reused = info.Reused }) },
+		GotConn: func(info httptrace.GotConnInfo) {
+			t.lock(func() { v := info.Reused; t.reused = &v })
+		},
 		GotFirstResponseByte: func() {
 			t.lock(func() {
 				if !t.began.IsZero() && t.ttfb == nil {

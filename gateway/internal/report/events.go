@@ -93,7 +93,9 @@ func gatewayMeta(o observe.Observation) map[string]any {
 				timing[name] = ms(*d)
 			}
 		}
-		meta["connReused"] = t.ConnReused
+		if t.ConnReused != nil {
+			meta["connReused"] = *t.ConnReused
+		}
 	}
 	if o.Headers != nil {
 		meta["requestHeaders"] = o.Headers

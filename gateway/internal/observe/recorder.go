@@ -73,8 +73,14 @@ func (r *recorder) WriteHeader(code int) {
 		switch {
 		case strings.HasPrefix(r.contentType, "text/event-stream"):
 			r.sse = true
-			r.scanner = capture.NewSSEUsageScanner(maxSSELine)
-			r.limit = r.keep // scanned as it passes; no need to hold the stream
+			if r.contentEncoding == "" || r.contentEncoding == "identity" {
+				r.scanner = capture.NewSSEUsageScanner(maxSSELine)
+				r.limit = r.keep // scanned as it passes; no need to hold the stream
+			} else {
+				// A compressed stream is binary to the line scanner, and captured bytes would be
+				// mangled text. Still reported as streaming, with usage unknown.
+				r.limit = 0
+			}
 		case !r.parseable():
 			r.limit = r.keep
 		}
@@ -95,7 +101,7 @@ func (r *recorder) Write(p []byte) (int, error) {
 }
 
 func (r *recorder) observe(p []byte) {
-	if r.sse {
+	if r.scanner != nil {
 		_, _ = r.scanner.Write(p)
 	}
 	if room := r.limit - int64(r.buf.Len()); room > 0 {
@@ -152,6 +158,9 @@ func (r *recorder) result() (capture.Usage, string) {
 		return nil, ""
 	}
 	if r.sse {
+		if r.scanner == nil {
+			return nil, ""
+		}
 		return r.scanner.Usage(), r.scanner.Model()
 	}
 	if !r.parseable() {
@@ -161,7 +170,7 @@ func (r *recorder) result() (capture.Usage, string) {
 	if !ok {
 		return nil, ""
 	}
-	return capture.ParseUsageJSON(body), capture.ParseModelJSON(body)
+	return capture.ParseBody(body)
 }
 
 // decodedBody returns the buffered response as plain bytes. ok is false when the body was
@@ -190,7 +199,13 @@ func (r *recorder) decodedBody() ([]byte, bool) {
 
 // outputBytes is the response body as readable text where possible (gzip is decoded).
 func (r *recorder) outputBytes() []byte {
-	if r.contentEncoding == "" || r.contentEncoding == "identity" || r.sse {
+	if r.sse {
+		if r.scanner == nil {
+			return nil // compressed stream
+		}
+		return r.buf.Bytes()
+	}
+	if r.contentEncoding == "" || r.contentEncoding == "identity" {
 		return r.buf.Bytes()
 	}
 	if b, ok := r.decodedBody(); ok {

@@ -108,7 +108,7 @@ All settings are environment variables. The gateway refuses to start with a clea
 |---|---|---|
 | `UPSTREAM_URL` | **required** | provider base URL (http/https, no credentials) |
 | `LISTEN_ADDR` | `:8080` | listen address |
-| `UPSTREAM_TIMEOUT` | `60s` | wait for upstream **response headers** (does not cut long streams) |
+| `UPSTREAM_TIMEOUT` | `10m` | wait for upstream **response headers**. A non-streaming completion sends none until it finishes, so keep this above your slowest generation (does not cut long streams) |
 | `SHUTDOWN_TIMEOUT` | `15s` | time to finish in-flight requests, and again to flush reports, on SIGTERM |
 | `OPS_ADDR` | unset | separate listener for `/healthz`, `/readyz`, `/metrics` (plain HTTP); unset = same port as the proxy |
 | `DRAIN_DELAY` | `0` | after SIGTERM keep serving this long with `/readyz` = 503 so a load balancer notices |
@@ -146,11 +146,15 @@ bash scripts/bench.sh    # overhead and throughput measurement
   have unknown usage.
 * **OpenAI-shaped usage only.** Anthropic-style streaming (usage split across `message_start` and
   `message_delta`) and OpenAI *Responses* streaming (usage nested under `response.completed`) are not
-  parsed, so those streams report unknown usage.
+  parsed. A stream's usage is accepted only when it is complete (input and output both present), so
+  those streams report unknown usage rather than a half-count.
+* **Compressed event streams are not read.** If a provider or CDN gzips an SSE response, the stream is
+  forwarded untouched and reported as streaming, but its usage, model and body are unknown.
 * **Model name.** Taken from the first `PEEK_BYTES` of the request; if a very long prompt pushes
   `"model"` past that, the model the response reports is used instead.
 * **Responses that cannot be read.** Brotli/zstd-encoded or non-JSON responses, and JSON larger than
-  `PARSE_MAX_BYTES`, have unknown usage. Only gzip is decoded.
+  `PARSE_MAX_BYTES`, have unknown usage (a large embeddings batch can exceed 1 MiB; raise the limit,
+  accepting that each in-flight response of that size is held in memory). Only gzip is decoded.
 * **No cost.** There is no price table; Tracewell shows usage but no cost for these calls.
 * **The gateway does not authenticate callers, and it holds your Tracewell secret key.** Anyone who can
   reach it can (a) send requests through to the upstream with whatever key they supply, (b) write
@@ -168,6 +172,8 @@ bash scripts/bench.sh    # overhead and throughput measurement
 * **Slow readers.** A client that accepts a response very slowly can hold a connection and its
   upstream connection open; there is deliberately no write timeout (it would cut idle SSE streams).
   Limits on connections belong in the load balancer in front. Slow *senders* are handled (`PEEK_TIMEOUT`).
+* **TLS certificates are loaded at startup.** A renewed certificate on disk is not picked up until the
+  gateway restarts; terminate TLS in front of it if you need rotation without restarts.
 * **Environment proxies.** The upstream HTTP client honours `HTTPS_PROXY`/`HTTP_PROXY`; if set in the
   container environment, provider traffic (with your keys) goes through that proxy.
 * **Go version.** Build with Go 1.27.2 or newer. Earlier 1.27.x releases have standard-library

@@ -57,8 +57,8 @@ func TestPhasesAreMeasuredFromTheirOwnStartAndDone(t *testing.T) {
 	if ms(s.TTFB) != 191*time.Millisecond {
 		t.Errorf("ttfb = %v, want 191ms", ms(s.TTFB))
 	}
-	if s.ConnReused {
-		t.Error("ConnReused = true")
+	if s.ConnReused == nil || *s.ConnReused {
+		t.Errorf("ConnReused = %v, want false (a connection was obtained and it was new)", s.ConnReused)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestReusedConnectionHasNoSetupPhases(t *testing.T) {
 	if s.DNS != nil || s.Connect != nil || s.TLS != nil {
 		t.Errorf("setup phases must be absent on a reused connection, got %v %v %v", s.DNS, s.Connect, s.TLS)
 	}
-	if !s.ConnReused || ms(s.TTFB) != 50*time.Millisecond {
+	if s.ConnReused == nil || !*s.ConnReused || ms(s.TTFB) != 50*time.Millisecond {
 		t.Errorf("reused=%v ttfb=%v", s.ConnReused, ms(s.TTFB))
 	}
 }
@@ -111,7 +111,7 @@ func TestFailedConnectLeavesConnectUnknown(t *testing.T) {
 
 func TestNothingMeasuredBeforeItHappens(t *testing.T) {
 	tm, _ := newFake()
-	if s := tm.Snapshot(); s.DNS != nil || s.Connect != nil || s.TLS != nil || s.TTFB != nil {
+	if s := tm.Snapshot(); s.DNS != nil || s.Connect != nil || s.TLS != nil || s.TTFB != nil || s.ConnReused != nil {
 		t.Errorf("fresh snapshot not empty: %+v", s)
 	}
 }
@@ -142,7 +142,7 @@ func TestRealPlainHTTPConnectThenReuse(t *testing.T) {
 	defer base.CloseIdleConnections()
 
 	first := get(t, base, srv.URL)
-	if first.Connect == nil || first.DNS != nil || first.TLS != nil || first.ConnReused {
+	if first.Connect == nil || first.DNS != nil || first.TLS != nil || first.ConnReused == nil || *first.ConnReused {
 		t.Errorf("first: %+v (connect set, dns/tls nil for IP + http)", first)
 	}
 	if first.TTFB == nil || *first.TTFB < 60*time.Millisecond {
@@ -150,7 +150,7 @@ func TestRealPlainHTTPConnectThenReuse(t *testing.T) {
 	}
 
 	second := get(t, base, srv.URL)
-	if !second.ConnReused || second.Connect != nil {
+	if second.ConnReused == nil || !*second.ConnReused || second.Connect != nil {
 		t.Errorf("second: %+v (want reused, no connect)", second)
 	}
 }
@@ -183,5 +183,19 @@ func TestTransportWithoutTimingsInContextJustForwards(t *testing.T) {
 	resp.Body.Close()
 	if string(b) != "ok" {
 		t.Errorf("body = %q", b)
+	}
+}
+
+// If the request never obtained a connection (client stalled, DNS failed) nothing says whether
+// one would have been reused, so it must stay unknown rather than read as "new connection".
+func TestConnReusedStaysUnknownWithoutAConnection(t *testing.T) {
+	tm, c := newFake()
+	h := tm.clientTrace()
+	tm.begin()
+	h.DNSStart(httptrace.DNSStartInfo{})
+	c.advance(5 * time.Millisecond)
+	h.DNSDone(httptrace.DNSDoneInfo{})
+	if s := tm.Snapshot(); s.ConnReused != nil {
+		t.Errorf("ConnReused = %v before GotConn", *s.ConnReused)
 	}
 }

@@ -57,8 +57,15 @@ func (s *SSEUsageScanner) endLine() {
 				s.model = ParseModelJSON(rest)
 			}
 			if bytes.Contains(rest, []byte(`"usage"`)) {
+				// Only a complete usage counts. Anthropic-style streams end with a top-level usage
+				// that holds just the output tokens (input is nested in an earlier event); taking
+				// it would report "0 input tokens" when the truth is unknown.
 				if u := ParseUsageJSON(rest); u != nil {
-					s.usage = u
+					_, hasIn := u["input"]
+					_, hasOut := u["output"]
+					if hasIn && hasOut {
+						s.usage = u
+					}
 				}
 			}
 		}

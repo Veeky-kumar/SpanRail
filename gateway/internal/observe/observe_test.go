@@ -583,3 +583,23 @@ func TestHijackedUpgradeIsRecordedAs101NotClientClosed(t *testing.T) {
 		t.Errorf("status = %d, want 101 (ReverseProxy hijacks for Upgrade responses without calling WriteHeader)", rec.status)
 	}
 }
+
+// A compressed event stream is binary to the line scanner; reading it would find nothing and
+// capturing it would store mangled bytes. It must be treated as unreadable (usage unknown).
+func TestCompressedStreamIsNotScannedOrCaptured(t *testing.T) {
+	rec := newRecorder(httptest.NewRecorder(), Options{ParseMaxBytes: 1 << 20, CaptureBodies: true, CaptureMaxBytes: 100}, true)
+	rec.Header().Set("Content-Type", "text/event-stream")
+	rec.Header().Set("Content-Encoding", "gzip")
+	rec.WriteHeader(200)
+	_, _ = rec.Write([]byte("\x1f\x8b\x08binary-looking-bytes-data:{\"usage\":{\"prompt_tokens\":9,\"completion_tokens\":9}}\n"))
+	usage, model := rec.result()
+	if usage != nil || model != "" {
+		t.Errorf("usage=%v model=%q from a compressed stream", usage, model)
+	}
+	if !rec.sse {
+		t.Error("it is still a stream and should be reported as streaming")
+	}
+	if len(rec.outputBytes()) != 0 {
+		t.Errorf("captured %d bytes of compressed stream", len(rec.outputBytes()))
+	}
+}

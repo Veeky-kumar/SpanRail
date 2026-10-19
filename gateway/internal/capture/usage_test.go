@@ -85,8 +85,8 @@ func TestSSEScannerOverlongLineIsSkippedNotBuffered(t *testing.T) {
 		t.Errorf("buffer grew to %d, cap is 64", len(s.buf))
 	}
 	// A normal line after the long one still parses.
-	_, _ = s.Write([]byte("\ndata: {\"usage\":{\"prompt_tokens\":1}}\n"))
-	if got := s.Usage(); !reflect.DeepEqual(got, Usage{"input": 1}) {
+	_, _ = s.Write([]byte("\ndata: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":2}}\n"))
+	if got := s.Usage(); !reflect.DeepEqual(got, Usage{"input": 1, "output": 2, "total": 3}) {
 		t.Errorf("got %v", got)
 	}
 }
@@ -109,5 +109,31 @@ func TestSSEScannerRemembersTheFirstModel(t *testing.T) {
 	_, _ = s.Write([]byte("data: {\"choices\":[]}\n\ndata: {\"model\":\"first\"}\n\ndata: {\"model\":\"second\"}\n\n"))
 	if s.Model() != "first" {
 		t.Errorf("Model() = %q", s.Model())
+	}
+}
+
+// Anthropic-style streams put input tokens in message_start (nested, ignored) and only the
+// output tokens in the final top-level usage. A half-usage would read as "0 input tokens", which
+// is wrong, so a stream's usage counts only when it is complete.
+func TestSSEScannerIgnoresPartialUsage(t *testing.T) {
+	s := NewSSEUsageScanner(1 << 20)
+	_, _ = s.Write([]byte("data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":15}}\n\n"))
+	if got := s.Usage(); got != nil {
+		t.Errorf("partial stream usage %v must be unknown", got)
+	}
+	// A later complete usage is still accepted.
+	_, _ = s.Write([]byte("data: {\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":6,\"total_tokens\":10}}\n\n"))
+	if got := s.Usage(); !reflect.DeepEqual(got, Usage{"input": 4, "output": 6, "total": 10}) {
+		t.Errorf("got %v", got)
+	}
+}
+
+func TestParseBodyReturnsUsageAndModelInOnePass(t *testing.T) {
+	u, m := ParseBody([]byte(`{"model":"gpt-x","usage":{"prompt_tokens":2,"completion_tokens":3}}`))
+	if m != "gpt-x" || !reflect.DeepEqual(u, Usage{"input": 2, "output": 3, "total": 5}) {
+		t.Errorf("usage=%v model=%q", u, m)
+	}
+	if u, m := ParseBody([]byte(`nope`)); u != nil || m != "" {
+		t.Errorf("garbage: usage=%v model=%q", u, m)
 	}
 }

@@ -78,7 +78,7 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 	c.Upstream = u
 
-	if c.UpstreamTimeout, err = duration(getenv, "UPSTREAM_TIMEOUT", 60*time.Second); err != nil {
+	if c.UpstreamTimeout, err = duration(getenv, "UPSTREAM_TIMEOUT", 10*time.Minute); err != nil {
 		return c, err
 	}
 	if c.ShutdownTimeout, err = duration(getenv, "SHUTDOWN_TIMEOUT", 15*time.Second); err != nil {

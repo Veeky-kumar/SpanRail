@@ -103,6 +103,9 @@ func main() {
 	} else {
 		go func() { errc <- srv.ListenAndServe() }()
 	}
+	if cfg.TLSCertFile != "" && cfg.OpsAddr == "" {
+		log.Print("warning: /metrics, /readyz and /healthz are served on the public TLS port; set OPS_ADDR to move them to a private listener")
+	}
 	log.Printf("gateway listening on %s (tls=%v), upstream %s", cfg.ListenAddr, cfg.TLSCertFile != "", cfg.Upstream.Redacted())
 
 	select {

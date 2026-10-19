@@ -12,6 +12,19 @@ import (
 // total, if both input and output were reported). A nil Usage means unknown.
 type Usage map[string]int64
 
+// ParseBody returns the token usage (nil if unknown) and the model name of a JSON response in
+// one pass over the body, instead of decoding a possibly megabyte-sized document twice.
+func ParseBody(body []byte) (Usage, string) {
+	var v struct {
+		Model string         `json:"model"`
+		Usage map[string]any `json:"usage"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return nil, ""
+	}
+	return usageFrom(v.Usage), truncateModel(v.Model)
+}
+
 // ParseModelJSON returns the top-level "model" of a JSON response body, or "" if absent.
 // Providers echo the resolved model name there (e.g. a dated snapshot).
 func ParseModelJSON(body []byte) string {
@@ -31,12 +44,20 @@ func ParseUsageJSON(body []byte) Usage {
 	var v struct {
 		Usage map[string]any `json:"usage"`
 	}
-	if json.Unmarshal(body, &v) != nil || v.Usage == nil {
+	if json.Unmarshal(body, &v) != nil {
+		return nil
+	}
+	return usageFrom(v.Usage)
+}
+
+// usageFrom reads token counts from a decoded "usage" object.
+func usageFrom(raw map[string]any) Usage {
+	if raw == nil {
 		return nil
 	}
 	num := func(keys ...string) (int64, bool) {
 		for _, k := range keys {
-			if f, ok := v.Usage[k].(float64); ok && f >= 0 && f == math.Trunc(f) && f < 1<<53 {
+			if f, ok := raw[k].(float64); ok && f >= 0 && f == math.Trunc(f) && f < 1<<53 {
 				return int64(f), true
 			}
 		}

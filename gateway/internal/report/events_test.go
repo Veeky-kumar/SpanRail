@@ -25,7 +25,7 @@ func baseObs() observe.Observation {
 		Start: t0, End: t0.Add(180500 * time.Microsecond), Status: 200, ResponseBytes: 412,
 		Usage: capture.Usage{"input": 12, "output": 5, "total": 17},
 		Timings: &nettrace.Snapshot{
-			DNS: dur(3.1), Connect: dur(8.4), TLS: dur(21.7), TTFB: dur(140.2),
+			DNS: dur(3.1), Connect: dur(8.4), TLS: dur(21.7), TTFB: dur(140.2), ConnReused: new(bool),
 		},
 	}
 }
@@ -106,7 +106,8 @@ func TestBuildEventsExistingTraceSkipsTraceCreate(t *testing.T) {
 func TestBuildEventsUnknownsAreOmittedNotZero(t *testing.T) {
 	o := baseObs()
 	o.Usage = nil
-	o.Timings = &nettrace.Snapshot{ConnReused: true, TTFB: dur(40)}
+	reused := true
+	o.Timings = &nettrace.Snapshot{ConnReused: &reused, TTFB: dur(40)}
 	o.Model = ""
 	gu := byType(BuildEvents(o))["generation-update"].Body
 	if _, has := gu["usageDetails"]; has {
@@ -221,5 +222,14 @@ func TestClientClosedStatusMessageHasNoTrailingSpace(t *testing.T) {
 	msg := byType(BuildEvents(o))["generation-update"].Body["statusMessage"].(string)
 	if msg != strings.TrimSpace(msg) || !strings.Contains(msg, "499") || !strings.Contains(strings.ToLower(msg), "client") {
 		t.Errorf("statusMessage = %q", msg)
+	}
+}
+
+func TestConnReusedIsOmittedWhenUnknown(t *testing.T) {
+	o := baseObs()
+	o.Timings = &nettrace.Snapshot{} // e.g. the client stalled before any connection was obtained
+	gw := byType(BuildEvents(o))["generation-update"].Body["metadata"].(map[string]any)["gateway"].(map[string]any)
+	if _, has := gw["connReused"]; has {
+		t.Error("connReused must be absent when no connection was obtained, not false")
 	}
 }

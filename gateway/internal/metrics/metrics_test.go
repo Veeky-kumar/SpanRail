@@ -33,9 +33,9 @@ func TestObserveRequestCountsByStatusAndRecordsPhases(t *testing.T) {
 
 	m.ObserveRequest(200, 300*time.Millisecond, nettrace.Snapshot{
 		DNS: d(2 * time.Millisecond), Connect: d(5 * time.Millisecond),
-		TLS: d(20 * time.Millisecond), TTFB: d(100 * time.Millisecond),
+		TLS: d(20 * time.Millisecond), TTFB: d(100 * time.Millisecond), ConnReused: boolPtr(false),
 	})
-	m.ObserveRequest(200, 10*time.Millisecond, nettrace.Snapshot{ConnReused: true, TTFB: d(8 * time.Millisecond)})
+	m.ObserveRequest(200, 10*time.Millisecond, nettrace.Snapshot{ConnReused: boolPtr(true), TTFB: d(8 * time.Millisecond)})
 	m.ObserveRequest(502, time.Millisecond, nettrace.Snapshot{})
 
 	body := scrape(t, m)
@@ -77,3 +77,5 @@ func TestNewRegistersOnPrivateRegistry(t *testing.T) {
 	New()
 	New()
 }
+
+func boolPtr(b bool) *bool { return &b }

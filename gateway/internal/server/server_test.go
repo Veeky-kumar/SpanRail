@@ -154,3 +154,23 @@ func TestNewLimitsHeaderSize(t *testing.T) {
 		t.Errorf("MaxHeaderBytes = %d; the 1 MiB default lets each connection pin a lot of memory", s.MaxHeaderBytes)
 	}
 }
+
+func TestProbeHost(t *testing.T) {
+	for addr, want := range map[string]string{
+		":8080":          "127.0.0.1",
+		"0.0.0.0:8080":   "127.0.0.1",
+		"[::]:8080":      "127.0.0.1",
+		"127.0.0.1:8080": "127.0.0.1",
+		"10.0.0.5:8080":  "10.0.0.5",
+		"[::1]:8080":     "::1",
+		"localhost:8080": "localhost",
+	} {
+		got, err := probeHost(addr)
+		if err != nil || got != want {
+			t.Errorf("probeHost(%q) = %q, %v; want %q", addr, got, err, want)
+		}
+	}
+	if _, err := probeHost("no-port"); err == nil {
+		t.Error("an address without a port must be an error")
+	}
+}

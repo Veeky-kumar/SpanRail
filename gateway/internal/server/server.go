@@ -84,23 +84,38 @@ func New(addr string, h http.Handler) *http.Server {
 	}
 }
 
+// probeHost is the host to dial for a self-probe of a listener bound to addr. A wildcard or empty
+// host (":8080", "0.0.0.0", "[::]") is reachable through loopback; a specific address (a
+// listener bound to 10.0.0.5, or ::1) is NOT reachable through 127.0.0.1, so it must be dialled.
+func probeHost(addr string) (string, error) {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("bad listen address %q: %w", addr, err)
+	}
+	if ip := net.ParseIP(host); host == "" || (ip != nil && ip.IsUnspecified()) {
+		return "127.0.0.1", nil
+	}
+	return host, nil
+}
+
 // Probe checks the gateway's own /healthz on the loopback interface. It backs the
 // `gateway healthcheck` subcommand, because the minimal runtime image has no curl or shell.
-// addr is the gateway's LISTEN_ADDR (":8080" or "host:port"). The probe only ever dials
-// 127.0.0.1, so certificate verification is skipped for the TLS case: the cert is issued for
-// the public name, not for loopback, and nothing sensitive is sent.
+// addr is the gateway's LISTEN_ADDR (":8080" or "host:port"). The probe only ever dials the
+// gateway's own listen address, so certificate verification is skipped for the TLS case: the cert is issued for
+// the public name, not for the address it dials, and nothing sensitive is sent.
 func Probe(addr string, useTLS bool) error {
-	_, port, err := net.SplitHostPort(addr)
+	host, err := probeHost(addr)
 	if err != nil {
-		return fmt.Errorf("bad listen address %q: %w", addr, err)
+		return err
 	}
+	_, port, _ := net.SplitHostPort(addr)
 	scheme := "http"
 	client := &http.Client{Timeout: 3 * time.Second}
 	if useTLS {
 		scheme = "https"
 		client.Transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec // loopback self-probe, see above
 	}
-	resp, err := client.Get(scheme + "://" + net.JoinHostPort("127.0.0.1", port) + "/healthz")
+	resp, err := client.Get(scheme + "://" + net.JoinHostPort(host, port) + "/healthz")
 	if err != nil {
 		return err
 	}

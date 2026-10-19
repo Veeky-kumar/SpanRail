@@ -178,7 +178,7 @@ func TestLoad(t *testing.T) {
 				if c.Upstream.String() != "https://api.example.com/" {
 					t.Errorf("Upstream = %q", c.Upstream)
 				}
-				if c.UpstreamTimeout != 60*time.Second {
+				if c.UpstreamTimeout != 10*time.Minute {
 					t.Errorf("UpstreamTimeout = %v", c.UpstreamTimeout)
 				}
 				if c.ShutdownTimeout != 15*time.Second {

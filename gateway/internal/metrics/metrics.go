@@ -88,9 +88,9 @@ func (m *Metrics) ObserveRequest(status int, total time.Duration, t nettrace.Sna
 			p.h.Observe(p.d.Seconds())
 		}
 	}
-	// Only requests that reached the upstream have a connection to classify.
-	if t.TTFB != nil {
-		m.connections.WithLabelValues(strconv.FormatBool(t.ConnReused)).Inc()
+	// Only requests that obtained a connection can be classified as new or reused.
+	if t.ConnReused != nil {
+		m.connections.WithLabelValues(strconv.FormatBool(*t.ConnReused)).Inc()
 	}
 }
 
