@@ -1,3 +1,4 @@
+commit: e6ee1a4, go version go1.27.2 windows/amd64
 PASS  6 generations stored
 PASS  fresh call: dns+connect measured
 PASS  reused call: no dns/connect/tls

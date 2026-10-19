@@ -1,54 +1,55 @@
+# commit e6ee1a4, go version go1.27.2 windows/amd64
 ######## upstream latency 0ms
 ### (a) direct to upstream
-direct #1                    c=1   n=20000 err=0  rps=5374  mean=0.180ms p50=0.000ms p95=0.555ms p99=0.669ms max=16.905ms
-direct #2                    c=1   n=20000 err=0  rps=5298  mean=0.183ms p50=0.000ms p95=0.558ms p99=0.687ms max=8.322ms
-direct #3                    c=1   n=20000 err=0  rps=5278  mean=0.183ms p50=0.000ms p95=0.557ms p99=0.702ms max=2.959ms
-direct #1                    c=32  n=20000 err=0  rps=27941  mean=1.037ms p50=0.860ms p95=2.687ms p99=3.710ms max=6.757ms
-direct #2                    c=32  n=20000 err=0  rps=27919  mean=1.041ms p50=0.762ms p95=2.735ms p99=4.095ms max=9.651ms
-direct #3                    c=32  n=20000 err=0  rps=28389  mean=1.046ms p50=0.828ms p95=2.686ms p99=3.749ms max=10.731ms
+direct #1                    c=1   n=20000 err=0  rps=5319  mean=0.182ms p50=0.000ms p95=0.556ms p99=0.693ms max=5.825ms
+direct #2                    c=1   n=20000 err=0  rps=5314  mean=0.183ms p50=0.000ms p95=0.557ms p99=0.679ms max=6.430ms
+direct #3                    c=1   n=20000 err=0  rps=4833  mean=0.201ms p50=0.000ms p95=0.566ms p99=0.778ms max=12.624ms
+direct #1                    c=32  n=20000 err=0  rps=30617  mean=0.946ms p50=0.676ms p95=2.508ms p99=3.714ms max=7.650ms
+direct #2                    c=32  n=20000 err=0  rps=27307  mean=1.099ms p50=0.901ms p95=3.087ms p99=4.221ms max=8.017ms
+direct #3                    c=32  n=20000 err=0  rps=28848  mean=1.008ms p50=0.743ms p95=2.725ms p99=3.695ms max=9.241ms
 ### (b) via gateway, reporting disabled
-gateway(no-report) #1        c=1   n=20000 err=0  rps=2130  mean=0.463ms p50=0.538ms p95=0.731ms p99=1.187ms max=9.995ms
-gateway(no-report) #2        c=1   n=20000 err=0  rps=2166  mean=0.456ms p50=0.537ms p95=0.706ms p99=1.148ms max=7.749ms
-gateway(no-report) #3        c=1   n=20000 err=0  rps=2207  mean=0.447ms p50=0.536ms p95=0.692ms p99=1.157ms max=9.136ms
-gateway(no-report) #1        c=32  n=20000 err=0  rps=10232  mean=3.072ms p50=2.815ms p95=6.047ms p99=7.924ms max=13.086ms
-gateway(no-report) #2        c=32  n=20000 err=0  rps=10943  mean=2.882ms p50=2.663ms p95=5.654ms p99=7.435ms max=16.106ms
-gateway(no-report) #3        c=32  n=20000 err=0  rps=10351  mean=3.027ms p50=2.756ms p95=6.015ms p99=8.173ms max=28.407ms
+gateway(no-report) #1        c=1   n=20000 err=0  rps=2193  mean=0.449ms p50=0.537ms p95=0.666ms p99=1.161ms max=10.190ms
+gateway(no-report) #2        c=1   n=20000 err=0  rps=2222  mean=0.444ms p50=0.537ms p95=0.667ms p99=1.143ms max=7.183ms
+gateway(no-report) #3        c=1   n=20000 err=0  rps=2172  mean=0.455ms p50=0.537ms p95=0.696ms p99=1.186ms max=8.890ms
+gateway(no-report) #1        c=32  n=20000 err=0  rps=11371  mean=2.784ms p50=2.507ms p95=5.639ms p99=7.566ms max=13.373ms
+gateway(no-report) #2        c=32  n=20000 err=0  rps=11308  mean=2.790ms p50=2.579ms p95=5.476ms p99=7.122ms max=11.037ms
+gateway(no-report) #3        c=32  n=20000 err=0  rps=10510  mean=2.980ms p50=2.753ms p95=5.916ms p99=7.674ms max=14.967ms
 ### (c) via gateway, reporting to a fast fake Tracewell
-gateway(report) #1           c=1   n=20000 err=0  rps=2070  mean=0.476ms p50=0.539ms p95=0.724ms p99=1.246ms max=11.444ms
-gateway(report) #2           c=1   n=20000 err=0  rps=2147  mean=0.460ms p50=0.537ms p95=0.676ms p99=1.183ms max=6.583ms
-gateway(report) #3           c=1   n=20000 err=0  rps=2110  mean=0.468ms p50=0.539ms p95=0.677ms p99=1.188ms max=8.161ms
-gateway(report) #1           c=32  n=20000 err=0  rps=13535  mean=2.243ms p50=2.068ms p95=4.357ms p99=5.818ms max=10.730ms
-gateway(report) #2           c=32  n=20000 err=0  rps=12124  mean=2.503ms p50=2.206ms p95=5.247ms p99=7.219ms max=18.073ms
-gateway(report) #3           c=32  n=20000 err=0  rps=13464  mean=2.275ms p50=2.035ms p95=4.533ms p99=6.324ms max=11.137ms
+gateway(report) #1           c=1   n=20000 err=0  rps=2144  mean=0.461ms p50=0.537ms p95=0.683ms p99=1.223ms max=7.285ms
+gateway(report) #2           c=1   n=20000 err=0  rps=2157  mean=0.458ms p50=0.537ms p95=0.670ms p99=1.192ms max=4.034ms
+gateway(report) #3           c=1   n=20000 err=0  rps=2106  mean=0.469ms p50=0.537ms p95=0.715ms p99=1.269ms max=8.624ms
+gateway(report) #1           c=32  n=20000 err=0  rps=12938  mean=2.327ms p50=2.103ms p95=4.660ms p99=6.577ms max=26.057ms
+gateway(report) #2           c=32  n=20000 err=0  rps=13185  mean=2.285ms p50=2.102ms p95=4.500ms p99=5.948ms max=14.768ms
+gateway(report) #3           c=32  n=20000 err=0  rps=13339  mean=2.271ms p50=2.089ms p95=4.495ms p99=6.014ms max=13.432ms
 gateway reporter metrics after (c):
 tracewell_gateway_report_dropped_total 0
 tracewell_gateway_report_events_sent_total 369000
 tracewell_gateway_report_flush_failures_total 0
-fake tracewell received: {"events":{"generation-create":123000,"generation-update":123000,"trace-create":123000},"requests":7236}
+fake tracewell received: {"events":{"generation-create":123000,"generation-update":123000,"trace-create":123000},"requests":7237}
 ######## upstream latency 20ms
 ### (a) direct to upstream
-direct #1                    c=1   n=1500 err=0  rps=47  mean=21.120ms p50=20.906ms p95=22.024ms p99=26.079ms max=56.292ms
-direct #2                    c=1   n=1500 err=0  rps=47  mean=21.059ms p50=20.903ms p95=22.043ms p99=24.129ms max=49.012ms
-direct #3                    c=1   n=1500 err=0  rps=48  mean=21.032ms p50=20.912ms p95=21.845ms p99=23.045ms max=59.220ms
-direct #1                    c=32  n=20000 err=0  rps=1534  mean=20.841ms p50=20.596ms p95=22.189ms p99=24.307ms max=35.960ms
-direct #2                    c=32  n=20000 err=0  rps=1541  mean=20.753ms p50=20.567ms p95=21.880ms p99=23.794ms max=32.301ms
-direct #3                    c=32  n=20000 err=0  rps=1533  mean=20.854ms p50=20.584ms p95=22.074ms p99=24.432ms max=48.258ms
+direct #1                    c=1   n=1500 err=0  rps=47  mean=21.123ms p50=20.921ms p95=22.275ms p99=25.302ms max=46.334ms
+direct #2                    c=1   n=1500 err=0  rps=47  mean=21.084ms p50=20.915ms p95=22.071ms p99=24.863ms max=35.959ms
+direct #3                    c=1   n=1500 err=0  rps=48  mean=21.031ms p50=20.892ms p95=21.907ms p99=23.468ms max=41.397ms
+direct #1                    c=32  n=20000 err=0  rps=1542  mean=20.741ms p50=20.555ms p95=21.920ms p99=23.453ms max=29.060ms
+direct #2                    c=32  n=20000 err=0  rps=1543  mean=20.716ms p50=20.520ms p95=21.811ms p99=23.387ms max=45.135ms
+direct #3                    c=32  n=20000 err=0  rps=1541  mean=20.746ms p50=20.552ms p95=21.942ms p99=23.592ms max=32.540ms
 ### (b) via gateway, reporting disabled
-gateway(no-report) #1        c=1   n=1500 err=0  rps=46  mean=21.546ms p50=21.351ms p95=22.689ms p99=25.649ms max=58.669ms
-gateway(no-report) #2        c=1   n=1500 err=0  rps=46  mean=21.548ms p50=21.368ms p95=22.784ms p99=26.332ms max=33.212ms
-gateway(no-report) #3        c=1   n=1500 err=0  rps=46  mean=21.555ms p50=21.357ms p95=22.668ms p99=25.970ms max=59.626ms
-gateway(no-report) #1        c=32  n=20000 err=0  rps=1496  mean=21.363ms p50=21.206ms p95=22.903ms p99=24.250ms max=30.391ms
-gateway(no-report) #2        c=32  n=20000 err=0  rps=1488  mean=21.483ms p50=21.167ms p95=23.241ms p99=26.035ms max=64.967ms
-gateway(no-report) #3        c=32  n=20000 err=0  rps=1500  mean=21.311ms p50=21.059ms p95=22.866ms p99=25.326ms max=54.101ms
+gateway(no-report) #1        c=1   n=1500 err=0  rps=46  mean=21.657ms p50=21.374ms p95=22.946ms p99=27.479ms max=51.816ms
+gateway(no-report) #2        c=1   n=1500 err=0  rps=46  mean=21.644ms p50=21.359ms p95=22.832ms p99=27.934ms max=59.664ms
+gateway(no-report) #3        c=1   n=1500 err=0  rps=46  mean=21.667ms p50=21.387ms p95=23.007ms p99=27.297ms max=56.320ms
+gateway(no-report) #1        c=32  n=20000 err=0  rps=1505  mean=21.234ms p50=21.054ms p95=22.668ms p99=24.652ms max=30.080ms
+gateway(no-report) #2        c=32  n=20000 err=0  rps=1501  mean=21.292ms p50=21.094ms p95=22.881ms p99=24.387ms max=32.537ms
+gateway(no-report) #3        c=32  n=20000 err=0  rps=1509  mean=21.179ms p50=21.022ms p95=22.579ms p99=23.831ms max=28.918ms
 ### (c) via gateway, reporting to a fast fake Tracewell
-gateway(report) #1           c=1   n=1500 err=0  rps=46  mean=21.537ms p50=21.371ms p95=22.624ms p99=25.861ms max=37.160ms
-gateway(report) #2           c=1   n=1500 err=0  rps=46  mean=21.585ms p50=21.355ms p95=22.789ms p99=25.944ms max=63.799ms
-gateway(report) #3           c=1   n=1500 err=0  rps=46  mean=21.638ms p50=21.351ms p95=22.950ms p99=26.724ms max=82.299ms
-gateway(report) #1           c=32  n=20000 err=0  rps=1500  mean=21.297ms p50=21.109ms p95=22.727ms p99=24.903ms max=32.579ms
-gateway(report) #2           c=32  n=20000 err=0  rps=1485  mean=21.503ms p50=21.158ms p95=23.411ms p99=26.680ms max=49.406ms
-gateway(report) #3           c=32  n=20000 err=0  rps=1492  mean=21.417ms p50=21.196ms p95=23.170ms p99=25.849ms max=38.438ms
+gateway(report) #1           c=1   n=1500 err=0  rps=46  mean=21.673ms p50=21.406ms p95=23.080ms p99=27.256ms max=54.789ms
+gateway(report) #2           c=1   n=1500 err=0  rps=46  mean=21.599ms p50=21.368ms p95=22.784ms p99=26.327ms max=52.627ms
+gateway(report) #3           c=1   n=1500 err=0  rps=46  mean=21.595ms p50=21.351ms p95=23.080ms p99=25.604ms max=45.961ms
+gateway(report) #1           c=32  n=20000 err=0  rps=1495  mean=21.359ms p50=21.144ms p95=22.868ms p99=25.062ms max=45.557ms
+gateway(report) #2           c=32  n=20000 err=0  rps=1485  mean=21.503ms p50=21.184ms p95=23.445ms p99=27.672ms max=46.655ms
+gateway(report) #3           c=32  n=20000 err=0  rps=1492  mean=21.419ms p50=21.185ms p95=23.190ms p99=25.866ms max=31.315ms
 gateway reporter metrics after (c):
 tracewell_gateway_report_dropped_total 0
 tracewell_gateway_report_events_sent_total 202500
 tracewell_gateway_report_flush_failures_total 0
-fake tracewell received: {"events":{"generation-create":190500,"generation-update":190500,"trace-create":190500},"requests":12154}
+fake tracewell received: {"events":{"generation-create":190500,"generation-update":190500,"trace-create":190500},"requests":12160}

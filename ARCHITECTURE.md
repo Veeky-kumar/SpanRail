@@ -310,7 +310,7 @@ Decisions worth knowing, each tied to something verified in this repository:
 - **The provider key never leaves the gateway path.** `Authorization` and other credential headers are always
   redacted, bodies are off by default, and the Tracewell secret key type refuses to print itself.
 
-Verified (see `gateway/RESULTS.md` for numbers and raw output): 167 passing Go tests under `-race` (plus 13 for the UI parser); a scripted E2E
+Verified (see `gateway/RESULTS.md` for numbers and raw output): 173 passing Go tests under `-race` (plus 13 for the UI parser); a scripted E2E
 (15 assertions) against Postgres + Redis + the web app + the worker; SSE passthrough that fails if the proxy
 buffers (mutation-checked); real SIGTERM flush in a hardened container; load tests with zero errors; two independent code
 reviews and an independent security review whose findings were each verified and fixed with a test; `govulncheck` clean

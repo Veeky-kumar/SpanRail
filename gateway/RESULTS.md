@@ -10,7 +10,8 @@ in the "What I can claim" section at the bottom.
 | | |
 |---|---|
 | Machine | AMD Ryzen 7 250 (8 cores / 16 threads), 31.3 GB RAM, Windows 11 Home 10.0.26200, "Balanced" power plan |
-| Toolchain | Go **1.27.2** windows/amd64 for the final tests, E2E and benchmark (development started on 1.27.0, see "Problems found"), Docker Desktop (engine 29.4.1) |
+| Toolchain | Go **1.27.2** windows/amd64 for the final tests, E2E and benchmark (development started on 1.27.0, see "Problems found"), Docker Desktop (engine 29.4.1). The E2E, benchmark and test counts below were all taken on commit `e6ee1a4`; the container tests on its parent `2bcd531` (the later commit does not touch the Dockerfile or compose) |
+| Background load | an unrelated, idle 4-container Docker stack (the author's own Tracewell deployment) was running during the benchmark |
 | Topology | everything on one machine over loopback: load generator, gateway, fake upstream and fake Tracewell compete for the same CPUs |
 | Load generator | `cmd/bench`: closed loop, keep-alive client, 500 unmeasured warm-up requests, then `n` measured requests |
 | Repetitions | 3 runs per configuration, every run committed unaltered. Tables below show the **median of the 3** |
@@ -18,12 +19,12 @@ in the "What I can claim" section at the bottom.
 
 ## Tests and static checks
 
-* Go: `go test -race -count=1 ./...` -> **167 passing (108 top-level tests + 59 subtests), 0 failing**, 13 packages.
+* Go: `go test -race -count=1 ./...` -> **173 passing (114 top-level tests + 59 subtests), 0 failing**, 13 packages.
 * Node (the existing app plus the new dashboard logic): `vitest run` -> **50 passing** (37 existing + 13 new for the timing parser).
 * `gofmt -l` and `go vet ./...` print nothing. `govulncheck ./...` on Go 1.27.2: **no vulnerabilities**.
-* About 2,590 lines of Go source and 3,090 lines of Go test code.
-* Statement coverage: server 97%, report 96%, redact 100%, nettrace 100%, fakes 94-97%, config 93%,
-  proxy 90%, capture 89%, observe 89%, ids 83%, metrics 54% (mostly thin registration code).
+* About 2,660 lines of Go source and 3,180 lines of Go test code.
+* Statement coverage: server 98%, report 96%, redact 100%, nettrace 100%, fakes 94-97%, config 93%,
+  proxy 90%, capture 90%, observe 89%, ids 83%, metrics 54% (mostly thin registration code).
   `cmd/*` is not unit-tested; it is covered by the E2E script and the container test.
 * Concurrency-sensitive tests were each run repeatedly under `-race` (reporter 25x, observe/nettrace 15x, the
   stall tests 20x) without a failure.
@@ -42,34 +43,34 @@ gateway with reporting off, (c) through the gateway reporting to a fast fake Tra
 
 | Concurrency | Config | p50 | p95 | p99 | mean | req/s |
 |---|---|---|---|---|---|---|
-| 1 | direct | 20.91 ms | 22.02 ms | 24.13 ms | 21.06 ms | 47 |
-| 1 | gateway, no reporting | 21.36 ms (**+0.45**) | 22.69 ms (**+0.67**) | 25.97 ms | 21.55 ms | 46 |
-| 1 | gateway, reporting | 21.36 ms (+0.45) | 22.79 ms (+0.77) | 25.94 ms | 21.59 ms | 46 |
-| 32 | direct | 20.58 ms | 22.07 ms | 24.31 ms | 20.84 ms | 1,534 |
-| 32 | gateway, no reporting | 21.17 ms (**+0.58**) | 22.90 ms (**+0.83**) | 25.33 ms | 21.36 ms | 1,496 |
-| 32 | gateway, reporting | 21.16 ms (+0.57) | 23.17 ms (+1.10) | 25.85 ms | 21.42 ms | 1,492 |
+| 1 | direct | 20.92 ms | 22.07 ms | 24.86 ms | 21.08 ms | 47 |
+| 1 | gateway, no reporting | 21.37 ms (**+0.46**) | 22.95 ms (**+0.88**) | 27.48 ms | 21.66 ms | 46 |
+| 1 | gateway, reporting | 21.37 ms (+0.45) | 23.08 ms (+1.01) | 26.33 ms | 21.60 ms | 46 |
+| 32 | direct | 20.55 ms | 21.92 ms | 23.45 ms | 20.74 ms | 1,542 |
+| 32 | gateway, no reporting | 21.05 ms (**+0.50**) | 22.67 ms (**+0.75**) | 24.39 ms | 21.23 ms | 1,505 |
+| 32 | gateway, reporting | 21.18 ms (+0.63) | 23.19 ms (+1.27) | 25.87 ms | 21.42 ms | 1,492 |
 
-Reading: with a realistic upstream latency the gateway adds roughly **0.45-0.6 ms at p50 and 0.7-1.1 ms at
+Reading: with a realistic upstream latency the gateway adds roughly **0.45-0.6 ms at p50 and 0.75-1.3 ms at
 p95**, with throughput within 3% of direct. Differences below about 0.5 ms are within one clock step.
 
 ### With an instant (0 ms) upstream (worst case for relative cost, and throughput)
 
 | Concurrency | Config | mean | p95 | req/s |
 |---|---|---|---|---|
-| 1 | direct | 0.18 ms | 0.56 ms | 5,298 |
-| 1 | gateway, no reporting | 0.46 ms | 0.71 ms | 2,166 |
-| 1 | gateway, reporting | 0.47 ms | 0.68 ms | 2,110 |
-| 32 | direct | 1.04 ms | 2.69 ms | 27,941 |
-| 32 | gateway, no reporting | 3.03 ms | 6.02 ms | 10,351 |
-| 32 | gateway, reporting | 2.28 ms | 4.53 ms | 13,464 |
+| 1 | direct | 0.18 ms | 0.56 ms | 5,314 |
+| 1 | gateway, no reporting | 0.45 ms | 0.67 ms | 2,193 |
+| 1 | gateway, reporting | 0.46 ms | 0.68 ms | 2,144 |
+| 32 | direct | 1.01 ms | 2.73 ms | 28,848 |
+| 32 | gateway, no reporting | 2.79 ms | 5.64 ms | 11,308 |
+| 32 | gateway, reporting | 2.29 ms | 4.50 ms | 13,185 |
 
 At c=1 the mean overhead is about **0.27 ms** (p50 is not readable at this clock resolution). When the
-upstream costs nothing, the gateway is the bottleneck: it sustains ~10-13k requests/s against ~28k for
+upstream costs nothing, the gateway is the bottleneck: it sustains ~11-13k requests/s against ~29k for
 direct calls on this machine, with the load generator sharing the CPU. A real LLM call takes hundreds of
 milliseconds to seconds, so this regime shows the ceiling, not production behaviour.
 
 **An unexplained result, stated rather than hidden.** At c=32 with a 0 ms upstream the configuration
-with reporting *on* is consistently faster (13.5k req/s) than with reporting *off* (10.4k req/s). During
+with reporting *on* is consistently faster (13.2k req/s) than with reporting *off* (11.3k req/s). During
 development, 4 interleaved A/B rounds and a further 3 rounds all agreed, so it is not noise or run order, and
 the final benchmark shows the same. I tested the obvious explanation (reading the request body prefix up front
 changes how the body is written upstream) by shrinking the peek to 1 byte; throughput stayed at ~12.5k, so that
@@ -78,7 +79,7 @@ hypothesis is **refuted**, and I did not find the cause. Consequence: the "no re
 
 ## Event throughput
 
-* Gateway to a fast fake Tracewell, c=32, 0 ms upstream: **~13.5k calls/s sustained, which is ~40k events/s**
+* Gateway to a fast fake Tracewell, c=32, 0 ms upstream: **~13k calls/s sustained, which is ~40k events/s**
   (3 events per call) delivered in batches. Over the whole benchmark 369,000 events were sent for 123,000
   calls: **0 dropped, 0 flush failures**, and the sink received exactly 123,000 of each event type.
   (This used `QUEUE_SIZE=100000`; the default is 1000.)
@@ -117,7 +118,7 @@ OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on th
 | | |
 |---|---|
 | Image | multi-stage, `distroless/static:nonroot`, static binary, runs as uid 65532, Go 1.27.2 build stage |
-| Size | 4,998,051 bytes of image content (`docker image inspect`); `docker images` reports 21 MB disk usage |
+| Size | ~5.0 MB (4,998,859 bytes) of image content (`docker image inspect`); `docker images` reports 21 MB disk usage |
 | Hardening tested | ran with `--read-only --cap-drop ALL --security-opt no-new-privileges`: healthy, works |
 | Health | `HEALTHCHECK` via `gateway healthcheck` (follows `OPS_ADDR`); observed `healthy` |
 | Ops port | with `OPS_ADDR=:9090`, `/healthz` `/readyz` `/metrics` answered there; on the public port `/healthz` and `/metrics` were proxied to the upstream (404 from it), i.e. not served or shadowed |
@@ -143,10 +144,15 @@ OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on th
    it was published on all interfaces; 408/425 from Tracewell were treated as permanent; header redaction was a
    plain list; size caps were up to 1 GiB; client IPs were forwarded to the provider; WebSocket upgrades were
    recorded as status 499; the ops endpoints shared the public port (now optional `OPS_ADDR`).
-5. **`govulncheck` found 9 standard-library vulnerabilities in Go 1.27.0** (all fixed in 1.27.2), the version
+5. A third code review (of the finished branch) found, and I fixed: the 60 s default for waiting on response
+   headers turned slow non-streaming generations into 504s (now 10 min); an Anthropic-style stream could report a
+   half usage (now only complete usage counts); `connReused` read as "new connection" when no connection had been
+   obtained (now unknown); compressed event streams were scanned as text; the container health check only dialled
+   127.0.0.1; usage and model were parsed in two passes.
+6. **`govulncheck` found 9 standard-library vulnerabilities in Go 1.27.0** (all fixed in 1.27.2), the version
    first installed. `go.mod`, the Dockerfile and CI now require 1.27.2; the scan of the final code is clean.
    Everything measured above ran on 1.27.2, except the earlier manual timing run.
-6. **Found but not fixed** (documented in the README): Anthropic and OpenAI-Responses streaming usage shapes are
+7. **Found but not fixed** (documented in the README): TLS certificates are only loaded at startup; Anthropic and OpenAI-Responses streaming usage shapes are
    not parsed; a client that reads a response very slowly can hold a connection (no write timeout, because it
    would cut idle streams); `HTTPS_PROXY` in the environment is honoured; no per-connection limit; base images and
    GitHub Actions are tag-pinned, not digest/SHA-pinned; duplicate `"model"` keys take the first.
@@ -166,9 +172,9 @@ OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on th
 
 * "Built a Go reverse proxy (stdlib `net/http`, `httputil.ReverseProxy`, `httptrace`) that records LLM calls
   to an observability platform, including DNS, TCP, TLS and time-to-first-byte timings."
-* "167 automated Go tests passing under the race detector, plus a scripted end-to-end check (15 assertions)
+* "173 automated Go tests passing under the race detector, plus a scripted end-to-end check (15 assertions)
   against the real stack."
-* "Measured about 0.5 ms added latency at p50 and 0.7-1.1 ms at p95 against a 20 ms upstream (single
+* "Measured about 0.5 ms added latency at p50 and 0.75-1.3 ms at p95 against a 20 ms upstream (single
   Windows machine, loopback, 3 runs per case)."
 * "Found a connection-pooling defect through load testing (58 vs ~16 upstream connections) and fixed it test-first."
 * "Acted on an independent code review and security review, and added `govulncheck` after it found 9
