@@ -160,3 +160,28 @@ func TestHopByHopHeadersNotForwarded(t *testing.T) {
 		t.Errorf("hop-by-hop leaked: X-Hop=%q Keep-Alive=%q", gotConn, gotKeepAlive)
 	}
 }
+
+func TestTracewellControlHeadersAreStripped(t *testing.T) {
+	var seen http.Header
+	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }))
+	defer up.Close()
+	px := newProxy(t, up.URL, 5*time.Second)
+
+	req, _ := http.NewRequest(http.MethodGet, px.URL, nil)
+	req.Header.Set("X-Tracewell-Trace-Id", "t")
+	req.Header.Set("x-tracewell-custom", "c")
+	req.Header.Set("X-Other", "kept")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for k := range seen {
+		if strings.HasPrefix(strings.ToLower(k), "x-tracewell-") {
+			t.Errorf("%s forwarded to upstream", k)
+		}
+	}
+	if seen.Get("X-Other") != "kept" {
+		t.Error("unrelated headers must still be forwarded")
+	}
+}

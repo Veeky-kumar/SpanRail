@@ -105,6 +105,7 @@ func classify207(events []Event, data []byte) Result {
 	)
 	state := make([]int, len(events))
 	var firstMsg string
+	var unmatchedRetry, unmatchedReject int // errors that name nothing in this batch
 	for _, er := range parsed.Errors {
 		var hit []int
 		if i, ok := byEvent[er.ID]; ok {
@@ -116,11 +117,29 @@ func classify207(events []Event, data []byte) Result {
 		if er.Status >= 500 || er.Status == http.StatusTooManyRequests {
 			class = failRetry
 		}
+		if len(hit) == 0 {
+			if class == failRetry {
+				unmatchedRetry++
+			} else {
+				unmatchedReject++
+			}
+		}
 		for _, i := range hit {
 			state[i] = max(state[i], class) // retry wins if an event is named twice
 		}
 		if firstMsg == "" {
 			firstMsg = fmt.Sprintf("%d %s", er.Status, er.Message)
+		}
+	}
+
+	// An error that matches no event in the batch cannot be attributed, but it must not be
+	// silently counted as success. If it is retryable we cannot tell which events were stored,
+	// so retry every one not already rejected (safe: ingestion is idempotent per event id).
+	if unmatchedRetry > 0 {
+		for i, st := range state {
+			if st == failNone {
+				state[i] = failRetry
+			}
 		}
 	}
 
@@ -134,6 +153,11 @@ func classify207(events []Event, data []byte) Result {
 		case failRetry:
 			res.Retry = append(res.Retry, events[i])
 		}
+	}
+	// Unattributable rejections: take them out of the accepted count, one per error entry.
+	if take := min(unmatchedReject, res.Accepted); take > 0 {
+		res.Accepted -= take
+		res.Rejected += take
 	}
 	if res.Rejected > 0 || len(res.Retry) > 0 {
 		res.Err = fmt.Errorf("tracewell reported per-event errors (first: %s)", snippet([]byte(firstMsg)))

@@ -157,6 +157,9 @@ func TestLoad(t *testing.T) {
 				if c.ShutdownTimeout != 15*time.Second {
 					t.Errorf("ShutdownTimeout = %v", c.ShutdownTimeout)
 				}
+				if c.DrainDelay != 0 || c.PeekTimeout != 10*time.Second {
+					t.Errorf("DrainDelay=%v PeekTimeout=%v", c.DrainDelay, c.PeekTimeout)
+				}
 			},
 		},
 		{
@@ -166,8 +169,13 @@ func TestLoad(t *testing.T) {
 				"LISTEN_ADDR":      "127.0.0.1:9999",
 				"UPSTREAM_TIMEOUT": "5s",
 				"SHUTDOWN_TIMEOUT": "2s",
+				"DRAIN_DELAY":      "3s",
+				"PEEK_TIMEOUT":     "1s",
 			},
 			check: func(t *testing.T, c Config) {
+				if c.DrainDelay != 3*time.Second || c.PeekTimeout != time.Second {
+					t.Errorf("DrainDelay=%v PeekTimeout=%v", c.DrainDelay, c.PeekTimeout)
+				}
 				if c.ListenAddr != "127.0.0.1:9999" || c.UpstreamTimeout != 5*time.Second || c.ShutdownTimeout != 2*time.Second {
 					t.Errorf("unexpected config: %+v", c)
 				}

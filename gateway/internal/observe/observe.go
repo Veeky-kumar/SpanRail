@@ -5,6 +5,7 @@ package observe
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -52,8 +53,9 @@ type Sink interface {
 
 // Options configures the middleware.
 type Options struct {
-	PeekBytes       int64 // request-body prefix inspected for model/stream
-	ParseMaxBytes   int64 // largest response held in memory to read usage from
+	PeekBytes       int64         // request-body prefix inspected for the model name
+	PeekTimeout     time.Duration // how long a client may stall while we read that prefix; 0 = no limit
+	ParseMaxBytes   int64         // largest response held in memory to read usage from
 	CaptureBodies   bool
 	CaptureMaxBytes int // cap on Input/Output when CaptureBodies is on
 	CaptureHeaders  bool
@@ -81,14 +83,41 @@ func Handler(next http.Handler, o Options) http.Handler {
 
 		var info capture.RequestInfo
 		var hdr map[string]string
+		var traceID, parentID string
 		if report {
-			info, _ = capture.PeekRequest(r, o.PeekBytes) // a read error replays to the upstream
+			traceID, parentID = traceLink(r.Header)
+			// A client that promises a body and then goes quiet must not pin this goroutine:
+			// bound the prefix read with a deadline.
+			rc := http.NewResponseController(w)
+			if o.PeekTimeout > 0 {
+				_ = rc.SetReadDeadline(time.Now().Add(o.PeekTimeout))
+			}
+			var peekErr error
+			info, peekErr = capture.PeekRequest(r, o.PeekBytes) // the error also replays to the upstream
+			// Lift the deadline so streaming bodies are unaffected, but only if the peek
+			// succeeded. After a failed peek leave it expired: net/http would otherwise try to
+			// drain the rest of the promised body from the silent client, with no time limit.
+			if o.PeekTimeout > 0 && peekErr == nil {
+				_ = rc.SetReadDeadline(time.Time{})
+			}
 			if o.CaptureHeaders {
 				hdr = redact.Headers(r.Header, o.RedactHeaders)
 			}
 		}
 		rec := newRecorder(w, o, report)
-		next.ServeHTTP(rec, r)
+
+		// httputil.ReverseProxy aborts the handler with a panic (http.ErrAbortHandler) when it
+		// cannot finish copying a response, e.g. the client left mid-stream. Those are exactly
+		// the calls worth seeing, so recover, record, then re-panic so net/http still tears
+		// the connection down as the proxy intended.
+		var aborted any
+		func() {
+			defer func() { aborted = recover() }()
+			next.ServeHTTP(rec, r)
+		}()
+		if aborted != nil {
+			defer panic(aborted)
+		}
 
 		end := now()
 		status := rec.status
@@ -103,20 +132,27 @@ func Handler(next http.Handler, o Options) http.Handler {
 			return
 		}
 
+		usage, respModel := rec.result()
+		model := info.Model
+		if model == "" {
+			model = respModel // the request prefix did not show it (very long prompt)
+		}
 		obs := Observation{
-			ID:            ids.New(),
-			Name:          nameFromPath(r.URL.Path),
-			Model:         info.Model,
-			Method:        r.Method,
-			Path:          r.URL.Path,
-			Start:         start,
-			End:           end,
-			Status:        status,
-			Streaming:     rec.sse,
-			ResponseBytes: rec.bytes,
-			Usage:         rec.usage(),
-			Timings:       &snap,
-			Headers:       hdr,
+			ID:                  ids.New(),
+			TraceID:             traceID,
+			ParentObservationID: parentID,
+			Name:                nameFromPath(r.URL.Path),
+			Model:               model,
+			Method:              r.Method,
+			Path:                r.URL.Path,
+			Start:               start,
+			End:                 end,
+			Status:              status,
+			Streaming:           rec.sse,
+			ResponseBytes:       rec.bytes,
+			Usage:               usage,
+			Timings:             &snap,
+			Headers:             hdr,
 		}
 		if o.CaptureBodies {
 			obs.Input = truncate(info.Prefix, o.CaptureMaxBytes)
@@ -124,6 +160,29 @@ func Handler(next http.Handler, o Options) http.Handler {
 		}
 		o.Sink.Enqueue(obs)
 	})
+}
+
+// Headers a caller can send to attach a call to an existing Tracewell trace.
+const (
+	HeaderTraceID  = "X-Tracewell-Trace-Id"
+	HeaderParentID = "X-Tracewell-Parent-Observation-Id"
+)
+
+// validID limits what a caller can put into a Tracewell id. The value ends up in a JSON
+// document and in database keys, so only a conservative alphabet and length are accepted.
+var validID = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
+
+// traceLink reads the trace-linking headers. An invalid value is ignored, not rejected: the
+// call itself must still succeed, it just starts a fresh trace. A parent without a valid
+// trace is meaningless, so it is dropped too.
+func traceLink(h http.Header) (traceID, parentID string) {
+	if v := h.Get(HeaderTraceID); validID.MatchString(v) {
+		traceID = v
+		if p := h.Get(HeaderParentID); validID.MatchString(p) {
+			parentID = p
+		}
+	}
+	return
 }
 
 // nameFromPath turns /v1/chat/completions into chat.completions.

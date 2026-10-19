@@ -29,6 +29,7 @@ func main() {
 	m := metrics.New()
 	opts := observe.Options{
 		PeekBytes:       cfg.PeekBytes,
+		PeekTimeout:     cfg.PeekTimeout,
 		ParseMaxBytes:   cfg.ParseMaxBytes,
 		CaptureBodies:   cfg.CaptureBodies,
 		CaptureMaxBytes: cfg.CaptureMaxBytes,
@@ -57,13 +58,10 @@ func main() {
 	}
 
 	var draining atomic.Bool
-	srv := &http.Server{
-		Addr: cfg.ListenAddr,
-		Handler: server.Handler(
-			observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), opts),
-			server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }},
-		),
-	}
+	srv := server.New(cfg.ListenAddr, server.Handler(
+		observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), opts),
+		server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }},
+	))
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -78,11 +76,15 @@ func main() {
 	case <-ctx.Done():
 	}
 
-	// Order matters. 1) turn /readyz to 503 so balancers stop sending traffic, 2) let in-flight
-	// requests finish (each may still enqueue an observation), 3) only then flush the reporter,
-	// so nothing is enqueued after the final flush.
+	// A second signal now kills the process the default way instead of being swallowed.
+	stop()
+
+	// Order matters. 1) turn /readyz to 503 and keep serving for DRAIN_DELAY so balancers see
+	// it and stop sending traffic, 2) let in-flight requests finish (each may still enqueue an
+	// observation), 3) only then flush the reporter, so nothing is enqueued after the final flush.
 	log.Print("shutting down")
 	draining.Store(true)
+	time.Sleep(cfg.DrainDelay)
 	httpCtx, cancelHTTP := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancelHTTP()
 	if err := srv.Shutdown(httpCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {

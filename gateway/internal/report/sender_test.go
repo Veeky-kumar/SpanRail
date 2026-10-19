@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -147,5 +148,32 @@ func TestSenderIgnoresGarbage207Body(t *testing.T) {
 	// We cannot tell what was stored; retrying is safe because ingestion is idempotent per event id.
 	if len(res.Retry) != 2 || res.Err == nil {
 		t.Errorf("result = %+v", res)
+	}
+}
+
+func TestSenderUnmatchedErrorIsNotCountedAsAccepted(t *testing.T) {
+	for name, tc := range map[string]struct {
+		status                int
+		wantRetry, wantReject bool
+	}{
+		"4xx cannot be attributed, so none are counted accepted": {400, false, true},
+		"5xx cannot be attributed, so everything is retried":     {500, true, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, _ := sender(t, func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(207)
+				_, _ = io.WriteString(w, fmt.Sprintf(`{"successes":[],"errors":[{"id":"something-else","status":%d,"message":"x"}]}`, tc.status))
+			})
+			res := s.Send(context.Background(), events(3))
+			if res.Err == nil {
+				t.Error("an unattributable error must surface in Err")
+			}
+			if res.Accepted == 3 {
+				t.Error("all events counted as accepted despite a reported error")
+			}
+			if (len(res.Retry) == 3) != tc.wantRetry || (res.Rejected > 0) != tc.wantReject {
+				t.Errorf("result = %+v", res)
+			}
+		})
 	}
 }

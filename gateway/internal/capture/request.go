@@ -11,17 +11,17 @@ const maxModelLen = 256
 
 // RequestInfo is what the gateway learned by peeking at the start of a request body.
 type RequestInfo struct {
-	Model  string
-	Stream bool
+	Model  string // empty if not found in the peeked prefix
 	Prefix []byte // up to the peek limit; the full body if it was smaller
 }
 
-// PeekRequest reads at most limit bytes of r.Body to find the top-level "model" and
-// "stream" fields, then replaces r.Body so the upstream still receives every byte, in
-// order. Only the prefix is held in memory; the rest streams straight through.
+// PeekRequest reads at most limit bytes of r.Body to find the top-level "model" field,
+// then replaces r.Body so the upstream still receives every byte, in order. Only the
+// prefix is held in memory; the rest streams straight through.
 //
-// A read error does not fail the peek: it is replayed after the prefix, so the upstream
-// sees the same failure the client caused.
+// If reading fails part-way, the bytes read so far are still returned in info and the same
+// error is replayed after them to the upstream, so it sees the failure the client caused.
+// The error is also returned so the caller can decide what to do with the connection.
 func PeekRequest(r *http.Request, limit int64) (RequestInfo, error) {
 	var info RequestInfo
 	if r.Body == nil || r.Body == http.NoBody {
@@ -40,47 +40,44 @@ func PeekRequest(r *http.Request, limit int64) (RequestInfo, error) {
 		io.Closer
 	}{io.MultiReader(bytes.NewReader(prefix), rest), orig}
 
-	info.Model, info.Stream = scanTopLevel(prefix)
-	return info, nil
+	info.Model = scanModel(prefix)
+	return info, readErr
 }
 
-// scanTopLevel walks the top-level keys of a possibly truncated JSON object, stopping at the
-// first thing it cannot parse. Whatever it found before that point is still valid.
-func scanTopLevel(b []byte) (model string, stream bool) {
+// scanModel walks the top-level keys of a possibly truncated JSON object looking for
+// "model", stopping at the first thing it cannot parse. It finds the key only if it appears
+// inside the prefix: clients such as openai-python put "messages" first, so for a very long
+// prompt the model can lie beyond the peek window (the response is the fallback then).
+func scanModel(b []byte) (model string) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
-		return "", false
+		return ""
 	}
 	for dec.More() {
 		kt, err := dec.Token()
 		if err != nil {
-			return
+			return ""
 		}
-		key, _ := kt.(string)
-		switch key {
-		case "model":
+		if key, _ := kt.(string); key == "model" {
 			var s string
 			if dec.Decode(&s) != nil {
-				return
+				return ""
 			}
-			if len(s) > maxModelLen {
-				s = s[:maxModelLen]
-			}
-			model = s
-		case "stream":
-			var v bool
-			if dec.Decode(&v) != nil {
-				return
-			}
-			stream = v
-		default:
-			var skip json.RawMessage
-			if dec.Decode(&skip) != nil {
-				return
-			}
+			return truncateModel(s)
+		}
+		var skip json.RawMessage
+		if dec.Decode(&skip) != nil {
+			return ""
 		}
 	}
-	return
+	return ""
+}
+
+func truncateModel(s string) string {
+	if len(s) > maxModelLen {
+		return s[:maxModelLen]
+	}
+	return s
 }
 
 type errReader struct{ err error }

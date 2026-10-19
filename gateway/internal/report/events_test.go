@@ -3,6 +3,7 @@ package report
 import (
 	"encoding/json"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -137,6 +138,7 @@ func TestBuildEventsLevels(t *testing.T) {
 		{500, "ERROR", true},
 		{502, "ERROR", true},
 		{504, "ERROR", true},
+		{499, "WARNING", true},
 	}
 	for _, tt := range tests {
 		o := baseObs()
@@ -210,5 +212,14 @@ func TestBuildEventsSerializeToWhatTheIngestionSchemaAccepts(t *testing.T) {
 	}
 	if len(back.Batch) != 3 {
 		t.Errorf("round-tripped %d events", len(back.Batch))
+	}
+}
+
+func TestClientClosedStatusMessageHasNoTrailingSpace(t *testing.T) {
+	o := baseObs()
+	o.Status = 499
+	msg := byType(BuildEvents(o))["generation-update"].Body["statusMessage"].(string)
+	if msg != strings.TrimSpace(msg) || !strings.Contains(msg, "499") || !strings.Contains(strings.ToLower(msg), "client") {
+		t.Errorf("statusMessage = %q", msg)
 	}
 }

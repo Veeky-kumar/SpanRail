@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
@@ -30,12 +31,25 @@ func New(upstream *url.URL, headerTimeout time.Duration) http.Handler {
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(upstream) // joins upstream path prefix, sets Host to upstream's
 			pr.SetXForwarded()
+			stripControlHeaders(pr.Out.Header)
 		},
 		Transport: nettrace.Transport(transport), // records DNS/connect/TLS/TTFB when the request carries a Timings
 		// A negative interval flushes after every write, so SSE chunks reach the client
 		// as the upstream produces them instead of waiting for a buffer to fill.
 		FlushInterval: -1,
 		ErrorHandler:  errorHandler,
+	}
+}
+
+// ControlHeaderPrefix marks headers meant for the gateway itself (trace linking). They are
+// removed before forwarding so the LLM provider never sees them.
+const ControlHeaderPrefix = "x-tracewell-"
+
+func stripControlHeaders(h http.Header) {
+	for name := range h {
+		if strings.HasPrefix(strings.ToLower(name), ControlHeaderPrefix) {
+			delete(h, name)
+		}
 	}
 }
 

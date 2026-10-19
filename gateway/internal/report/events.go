@@ -121,7 +121,14 @@ func statusMessage(status int) string {
 	if status < 400 {
 		return ""
 	}
-	return fmt.Sprintf("HTTP %d %s", status, http.StatusText(status))
+	text := http.StatusText(status)
+	switch {
+	case status == 499:
+		text = "Client Closed Request" // nginx convention; the client left before a response was sent
+	case text == "":
+		text = "Error"
+	}
+	return fmt.Sprintf("HTTP %d %s", status, text)
 }
 
 // jsonOrString embeds a captured body as JSON when it is complete valid JSON (so the UI can

@@ -17,6 +17,8 @@ type Config struct {
 	Upstream        *url.URL
 	UpstreamTimeout time.Duration // max wait for upstream response headers
 	ShutdownTimeout time.Duration // max time to finish in-flight work on SIGTERM
+	DrainDelay      time.Duration // after SIGTERM, keep serving while /readyz says 503, so balancers notice
+	PeekTimeout     time.Duration // max time a client may stall while its request prefix is read
 
 	PeekBytes       int64    // request-body prefix inspected for model/stream
 	ParseMaxBytes   int64    // largest response held in memory to read token usage from
@@ -77,6 +79,12 @@ func Load(getenv func(string) string) (Config, error) {
 		return c, err
 	}
 	if c.ShutdownTimeout, err = duration(getenv, "SHUTDOWN_TIMEOUT", 15*time.Second); err != nil {
+		return c, err
+	}
+	if c.PeekTimeout, err = duration(getenv, "PEEK_TIMEOUT", 10*time.Second); err != nil {
+		return c, err
+	}
+	if c.DrainDelay, err = durationOrZero(getenv, "DRAIN_DELAY"); err != nil {
 		return c, err
 	}
 
@@ -203,6 +211,22 @@ func boolean(getenv func(string) string, key string) (bool, error) {
 		return false, fmt.Errorf("%s: %q is not a boolean (use true or false)", key, raw)
 	}
 	return b, nil
+}
+
+// durationOrZero reads a non-negative duration; unset means zero.
+func durationOrZero(getenv func(string) string, key string) (time.Duration, error) {
+	raw := getenv(key)
+	if raw == "" {
+		return 0, nil
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", key, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("%s must not be negative, got %s", key, raw)
+	}
+	return d, nil
 }
 
 func duration(getenv func(string) string, key string, def time.Duration) (time.Duration, error) {

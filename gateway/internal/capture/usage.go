@@ -12,6 +12,18 @@ import (
 // total, if both input and output were reported). A nil Usage means unknown.
 type Usage map[string]int64
 
+// ParseModelJSON returns the top-level "model" of a JSON response body, or "" if absent.
+// Providers echo the resolved model name there (e.g. a dated snapshot).
+func ParseModelJSON(body []byte) string {
+	var v struct {
+		Model string `json:"model"`
+	}
+	if json.Unmarshal(body, &v) != nil {
+		return ""
+	}
+	return truncateModel(v.Model)
+}
+
 // ParseUsageJSON reads the "usage" object of an OpenAI-compatible (prompt_tokens /
 // completion_tokens / total_tokens) or Responses/Anthropic-style (input_tokens /
 // output_tokens) JSON body. It never guesses: anything missing or malformed stays absent.

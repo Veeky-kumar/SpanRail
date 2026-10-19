@@ -90,3 +90,24 @@ func TestSSEScannerOverlongLineIsSkippedNotBuffered(t *testing.T) {
 		t.Errorf("got %v", got)
 	}
 }
+
+func TestParseModelJSON(t *testing.T) {
+	for in, want := range map[string]string{
+		`{"model":"gpt-4o-2026","usage":{}}`: "gpt-4o-2026",
+		`{"id":"x"}`:                         "",
+		`{"model":7}`:                        "",
+		`not json`:                           "",
+	} {
+		if got := ParseModelJSON([]byte(in)); got != want {
+			t.Errorf("%s: got %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestSSEScannerRemembersTheFirstModel(t *testing.T) {
+	s := NewSSEUsageScanner(1 << 20)
+	_, _ = s.Write([]byte("data: {\"choices\":[]}\n\ndata: {\"model\":\"first\"}\n\ndata: {\"model\":\"second\"}\n\n"))
+	if s.Model() != "first" {
+		t.Errorf("Model() = %q", s.Model())
+	}
+}

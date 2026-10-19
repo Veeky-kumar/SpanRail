@@ -32,7 +32,7 @@ type recorder struct {
 
 	buf       bytes.Buffer
 	limit     int64 // how much of the body to keep
-	sseKeep   int64 // replaces limit once the response turns out to be a stream
+	keep      int64 // replaces limit once the response turns out not to be worth parsing
 	truncated bool
 	noScan    bool // size/status only; no copy, no usage parsing
 }
@@ -45,9 +45,10 @@ func newRecorder(w http.ResponseWriter, o Options, inspect bool) *recorder {
 		return r
 	}
 	r.limit = o.ParseMaxBytes
-	// A stream is scanned as it passes; only keep a copy of it if bodies are being captured.
+	// Streams and responses we cannot parse are not worth holding in memory: keep a copy of
+	// them only if bodies are being captured, and then only up to the capture cap.
 	if o.CaptureBodies {
-		r.sseKeep = int64(o.CaptureMaxBytes)
+		r.keep = int64(o.CaptureMaxBytes)
 	}
 	return r
 }
@@ -66,10 +67,15 @@ func (r *recorder) WriteHeader(code int) {
 	h := r.Header()
 	r.contentType = strings.ToLower(h.Get("Content-Type"))
 	r.contentEncoding = strings.ToLower(strings.TrimSpace(h.Get("Content-Encoding")))
-	if !r.noScan && strings.HasPrefix(r.contentType, "text/event-stream") {
-		r.sse = true
-		r.scanner = capture.NewSSEUsageScanner(maxSSELine)
-		r.limit = r.sseKeep
+	if !r.noScan {
+		switch {
+		case strings.HasPrefix(r.contentType, "text/event-stream"):
+			r.sse = true
+			r.scanner = capture.NewSSEUsageScanner(maxSSELine)
+			r.limit = r.keep // scanned as it passes; no need to hold the stream
+		case !r.parseable():
+			r.limit = r.keep
+		}
 	}
 	r.ResponseWriter.WriteHeader(code)
 }
@@ -113,19 +119,35 @@ func (r *recorder) Flush() {
 // Unwrap exposes the underlying writer to http.ResponseController (hijack, deadlines).
 func (r *recorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
 
-// usage returns token usage found in the response, or nil if unknown.
-func (r *recorder) usage() capture.Usage {
-	if r.sse {
-		return r.scanner.Usage()
-	}
+// parseable reports whether the body is something we can read usage and model from.
+func (r *recorder) parseable() bool {
 	if !strings.Contains(r.contentType, "json") {
-		return nil
+		return false
+	}
+	switch r.contentEncoding {
+	case "", "identity", "gzip":
+		return true
+	}
+	return false
+}
+
+// result returns the token usage (nil if unknown) and the model name the response reported
+// (empty if none). The model is only a fallback for when the request prefix did not show it.
+func (r *recorder) result() (capture.Usage, string) {
+	if r.noScan {
+		return nil, ""
+	}
+	if r.sse {
+		return r.scanner.Usage(), r.scanner.Model()
+	}
+	if !r.parseable() {
+		return nil, ""
 	}
 	body, ok := r.decodedBody()
 	if !ok {
-		return nil
+		return nil, ""
 	}
-	return capture.ParseUsageJSON(body)
+	return capture.ParseUsageJSON(body), capture.ParseModelJSON(body)
 }
 
 // decodedBody returns the buffered response as plain bytes. ok is false when the body was

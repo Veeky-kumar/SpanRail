@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -316,4 +318,180 @@ func TestTimingsAndMetricsAreRecorded(t *testing.T) {
 		}
 	}
 	t.Errorf("both requests should be counted:\n%s", body)
+}
+
+func TestTraceHeadersAttachToExistingTraceAndAreNotForwarded(t *testing.T) {
+	var seen http.Header
+	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }), nil)
+
+	post(t, gw.URL+"/v1/x", `{}`, map[string]string{
+		"X-Tracewell-Trace-Id":              "trace-123",
+		"X-Tracewell-Parent-Observation-Id": "span_9.a:b",
+		"X-Tracewell-Anything":              "x",
+	}).Body.Close()
+
+	o := sk.next(t)
+	if o.TraceID != "trace-123" || o.ParentObservationID != "span_9.a:b" {
+		t.Errorf("trace=%q parent=%q", o.TraceID, o.ParentObservationID)
+	}
+	for k := range seen {
+		if strings.HasPrefix(strings.ToLower(k), "x-tracewell-") {
+			t.Errorf("internal header %q leaked to the upstream provider", k)
+		}
+	}
+}
+
+func TestInvalidTraceHeadersAreIgnored(t *testing.T) {
+	long := strings.Repeat("a", 129)
+	tests := []struct {
+		name, trace, parent string
+		wantTrace, wantPar  string
+	}{
+		{"none", "", "", "", ""},
+		{"trace only", "t1", "", "t1", ""},
+		{"parent without trace is meaningless", "", "p1", "", ""},
+		{"space in trace", "has space", "p1", "", ""},
+		{"too long trace", long, "", "", ""},
+		{"unicode trace", "träce", "", "", ""},
+		{"bad parent keeps the trace", "t1", "bad parent", "t1", ""},
+		{"quote and brace", `t"}`, "", "", ""},
+	}
+	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}), nil)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hdr := map[string]string{}
+			if tt.trace != "" {
+				hdr["X-Tracewell-Trace-Id"] = tt.trace
+			}
+			if tt.parent != "" {
+				hdr["X-Tracewell-Parent-Observation-Id"] = tt.parent
+			}
+			post(t, gw.URL+"/v1/x", `{}`, hdr).Body.Close()
+			o := sk.next(t)
+			if o.TraceID != tt.wantTrace || o.ParentObservationID != tt.wantPar {
+				t.Errorf("got trace=%q parent=%q, want %q %q", o.TraceID, o.ParentObservationID, tt.wantTrace, tt.wantPar)
+			}
+		})
+	}
+}
+
+// httputil.ReverseProxy panics with http.ErrAbortHandler when it cannot finish copying a
+// response (client left mid-stream). The call must still be recorded.
+func TestClientDisconnectMidStreamIsStillReported(t *testing.T) {
+	m := metrics.New()
+	release := make(chan struct{})
+	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"choices\":[]}\n\n")
+		w.(http.Flusher).Flush()
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}), func(o *Options) { o.Metrics = m })
+	defer close(release)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, gw.URL+"/v1/chat/completions", strings.NewReader(`{"model":"m","stream":true}`))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := make([]byte, 5)
+	if _, err := io.ReadFull(resp.Body, buf); err != nil {
+		t.Fatal(err)
+	}
+	cancel() // client walks away mid-stream
+	resp.Body.Close()
+
+	o := sk.next(t)
+	if o.Model != "m" || !o.Streaming {
+		t.Errorf("interrupted call not reported correctly: %+v", o)
+	}
+}
+
+func TestModelFallsBackToTheResponseWhenTheRequestPrefixHidesIt(t *testing.T) {
+	// "model" comes after a body larger than the peek window, as openai-python orders it.
+	big := `{"messages":[{"role":"user","content":"` + strings.Repeat("a", 6000) + `"}],"model":"req-model"}`
+
+	gwJSON, skJSON := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"model":"resolved-model-2026","usage":{"prompt_tokens":1}}`)
+	}), nil) // PeekBytes is 4096 in setup
+	post(t, gwJSON.URL+"/v1/x", big, nil).Body.Close()
+	if o := skJSON.next(t); o.Model != "resolved-model-2026" {
+		t.Errorf("json: model = %q", o.Model)
+	}
+
+	gwSSE, skSSE := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, "data: {\"model\":\"stream-model\",\"choices\":[]}\n\ndata: [DONE]\n\n")
+	}), nil)
+	post(t, gwSSE.URL+"/v1/x", big, nil).Body.Close()
+	if o := skSSE.next(t); o.Model != "stream-model" {
+		t.Errorf("sse: model = %q", o.Model)
+	}
+
+	// When the request names the model, that wins over the response.
+	gw3, sk3 := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"model":"resolved"}`)
+	}), nil)
+	post(t, gw3.URL+"/v1/x", `{"model":"asked-for"}`, nil).Body.Close()
+	if o := sk3.next(t); o.Model != "asked-for" {
+		t.Errorf("request model should win, got %q", o.Model)
+	}
+}
+
+func TestUnparseableResponsesAreNotHeldInMemory(t *testing.T) {
+	chunk := bytes.Repeat([]byte("a"), 64<<10)
+	for _, tc := range []struct {
+		name       string
+		ctype, enc string
+		capture    bool
+		wantAtMost int
+	}{
+		{"audio, capture off", "audio/mpeg", "", false, 0},
+		{"brotli json, capture off", "application/json", "br", false, 0},
+		{"audio, capture on is capped", "audio/mpeg", "", true, 100},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := newRecorder(httptest.NewRecorder(), Options{ParseMaxBytes: 1 << 20, CaptureBodies: tc.capture, CaptureMaxBytes: 100}, true)
+			rec.Header().Set("Content-Type", tc.ctype)
+			if tc.enc != "" {
+				rec.Header().Set("Content-Encoding", tc.enc)
+			}
+			rec.WriteHeader(200)
+			for i := 0; i < 80; i++ { // 5 MiB
+				_, _ = rec.Write(chunk)
+			}
+			if rec.buf.Len() > tc.wantAtMost {
+				t.Errorf("buffered %d bytes, want at most %d", rec.buf.Len(), tc.wantAtMost)
+			}
+			if rec.bytes != int64(80*len(chunk)) {
+				t.Errorf("size accounting broken: %d", rec.bytes)
+			}
+		})
+	}
+}
+
+func TestStalledRequestBodyDoesNotHangTheGateway(t *testing.T) {
+	gw, _ := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+	}), func(o *Options) { o.PeekTimeout = 150 * time.Millisecond })
+
+	conn, err := net.Dial("tcp", strings.TrimPrefix(gw.URL, "http://"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	// Promise 1000 bytes, send 10, then go silent.
+	_, _ = io.WriteString(conn, "POST /v1/x HTTP/1.1\r\nHost: x\r\nContent-Length: 1000\r\n\r\n0123456789")
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	start := time.Now()
+	_, err = io.ReadAll(conn)
+	var ne net.Error
+	if errors.As(err, &ne) && ne.Timeout() {
+		t.Fatalf("gateway still waiting on the stalled client after %v", time.Since(start))
+	}
 }
