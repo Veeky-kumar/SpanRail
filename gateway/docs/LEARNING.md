@@ -103,3 +103,50 @@ deadline now covers the request itself).
 
 ### Pieces to type yourself
 `PeekRequest` + `scanTopLevel`, the `recorder.Write/Flush/Unwrap` trio, and `SSEUsageScanner.Write`.
+
+## Milestone 3: network timings and Prometheus metrics
+
+### How DNS / TCP / TLS / TTFB are measured
+`net/http/httptrace` lets you attach a `ClientTrace` to a request's context. The standard library
+calls your function at fixed moments of the request's life. We record the time at each moment and
+subtract:
+
+| Phase | Start hook | End hook | Note |
+|---|---|---|---|
+| DNS | `DNSStart` | `DNSDone` | absent if the host is an IP, or the connection was reused |
+| TCP connect | `ConnectStart` | `ConnectDone` (err == nil) | with dual-stack hosts several connects race; only the winner counts |
+| TLS | `TLSHandshakeStart` | `TLSHandshakeDone` | absent for plain http or a reused connection |
+| TTFB | start of `RoundTrip` | `GotFirstResponseByte` | includes DNS + connect + TLS + the upstream's own think time |
+
+- `nettrace.Transport` wraps the real transport. If the request context carries a `*Timings`, it
+  calls `begin()` and attaches the trace; otherwise it forwards untouched.
+- The hooks run on different goroutines (the dialer has its own), so `Timings` uses a mutex.
+- **A phase that did not happen stays `nil`**, not 0. On a reused keep-alive connection there is no
+  DNS/connect/TLS, and a `0` would look like "instant network" when the truth is "not measured".
+  `GotConn(Reused)` tells us which case we are in.
+- Tests inject a fake clock into `Timings`, call the hooks by hand and assert exact durations
+  (20ms DNS + 30ms connect + 40ms TLS + 100ms wait = 191ms TTFB). Separate tests use real
+  `httptest` servers to prove the hooks really fire (plain, TLS, name lookup, reuse).
+
+### Metrics
+- Private `prometheus.Registry` (not the global one) so tests can build many instances.
+- Histograms use buckets from 1 ms doubling up to ~33 s, which covers a LAN hop and a slow completion.
+- A phase histogram is only observed when the phase was measured, so its `_count` is the number of
+  times DNS/connect/TLS really happened.
+- `/healthz` = alive (always 200). `/readyz` = take traffic (503 while draining on SIGTERM).
+  Separate endpoints so an orchestrator stops routing without killing a process that is still
+  finishing in-flight requests.
+
+### Interview questions
+1. *Why can TTFB be smaller than the sum shown in a browser's waterfall?* Definitions differ. Ours
+   starts at the beginning of the round trip and includes setup phases; a browser may split
+   "waiting" from "connecting".
+2. *Why are DNS/TLS pointers rather than numbers?* To tell "0 ms" from "did not happen".
+3. *What does Go's `ConnectStart` fire for when a host has IPv4 and IPv6?* Once per attempt (RFC 8305
+   "happy eyeballs"); we key starts by address and keep the successful one.
+4. *Why a private registry?* The default registry is a process-wide global; registering twice panics.
+5. *Why is a reused connection interesting to a network team?* It shows whether keep-alive pooling
+   works; a high share of new connections means handshake cost on every call.
+
+### Pieces to type yourself
+`Timings.clientTrace()` and `Transport`, and `Metrics.ObserveRequest`.

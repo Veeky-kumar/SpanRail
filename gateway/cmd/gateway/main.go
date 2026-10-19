@@ -8,10 +8,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/veeky-ai/tracewell-gateway/internal/config"
+	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
 	"github.com/veeky-ai/tracewell-gateway/internal/observe"
 	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
 	"github.com/veeky-ai/tracewell-gateway/internal/server"
@@ -33,6 +35,8 @@ func main() {
 		log.Fatalf("config error: %v", err)
 	}
 
+	m := metrics.New()
+	var draining atomic.Bool
 	observed := observe.Handler(proxy.New(cfg.Upstream, cfg.UpstreamTimeout), observe.Options{
 		PeekBytes:       cfg.PeekBytes,
 		ParseMaxBytes:   cfg.ParseMaxBytes,
@@ -41,10 +45,11 @@ func main() {
 		CaptureHeaders:  cfg.CaptureHeaders,
 		RedactHeaders:   cfg.RedactHeaders,
 		Sink:            logSink{},
+		Metrics:         m,
 	})
 	srv := &http.Server{
 		Addr:    cfg.ListenAddr,
-		Handler: server.Handler(observed),
+		Handler: server.Handler(observed, server.Ops{Metrics: m.Handler(), Ready: func() bool { return !draining.Load() }}),
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -61,6 +66,7 @@ func main() {
 	}
 
 	log.Print("shutting down")
+	draining.Store(true) // /readyz turns 503 so load balancers stop sending new traffic
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {

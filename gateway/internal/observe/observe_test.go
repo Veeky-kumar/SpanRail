@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/veeky-ai/tracewell-gateway/internal/capture"
+	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
 	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
 )
 
@@ -283,4 +284,36 @@ func TestBodiesCapturedOnlyWhenEnabledAndCapped(t *testing.T) {
 	if len(o.Output) != 100 {
 		t.Errorf("output len = %d, want cap 100", len(o.Output))
 	}
+}
+
+func TestTimingsAndMetricsAreRecorded(t *testing.T) {
+	m := metrics.New()
+	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
+		_, _ = io.WriteString(w, "{}")
+	}), func(o *Options) { o.Metrics = m })
+
+	post(t, gw.URL+"/v1/x", `{}`, nil).Body.Close()
+	resp, err := http.Get(gw.URL + "/v1/models") // GET is counted in metrics even though it is not reported
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	o := sk.next(t)
+	if o.Timings == nil || o.Timings.TTFB == nil || *o.Timings.TTFB < 50*time.Millisecond {
+		t.Fatalf("timings = %+v, want TTFB >= 50ms", o.Timings)
+	}
+	// Metrics are recorded after the response is written, so the client can see a request
+	// finish a moment before it is counted. Wait for the count rather than assume it.
+	var body string
+	for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		rec := httptest.NewRecorder()
+		m.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+		body = rec.Body.String()
+		if strings.Contains(body, `tracewell_gateway_requests_total{code="200"} 2`) {
+			return
+		}
+	}
+	t.Errorf("both requests should be counted:\n%s", body)
 }

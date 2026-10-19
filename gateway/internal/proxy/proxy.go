@@ -11,6 +11,8 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"time"
+
+	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
 )
 
 // New returns a handler that forwards every request to upstream. The upstream is fixed
@@ -29,7 +31,7 @@ func New(upstream *url.URL, headerTimeout time.Duration) http.Handler {
 			pr.SetURL(upstream) // joins upstream path prefix, sets Host to upstream's
 			pr.SetXForwarded()
 		},
-		Transport: transport,
+		Transport: nettrace.Transport(transport), // records DNS/connect/TLS/TTFB when the request carries a Timings
 		// A negative interval flushes after every write, so SSE chunks reach the client
 		// as the upstream produces them instead of waiting for a buffer to fill.
 		FlushInterval: -1,

@@ -34,10 +34,17 @@ type recorder struct {
 	limit     int64 // how much of the body to keep
 	sseKeep   int64 // replaces limit once the response turns out to be a stream
 	truncated bool
+	noScan    bool // size/status only; no copy, no usage parsing
 }
 
-func newRecorder(w http.ResponseWriter, o Options) *recorder {
-	r := &recorder{ResponseWriter: w, limit: o.ParseMaxBytes}
+// newRecorder wraps w. With inspect false it only tracks status and size and keeps no copy.
+func newRecorder(w http.ResponseWriter, o Options, inspect bool) *recorder {
+	r := &recorder{ResponseWriter: w}
+	if !inspect {
+		r.noScan = true
+		return r
+	}
+	r.limit = o.ParseMaxBytes
 	// A stream is scanned as it passes; only keep a copy of it if bodies are being captured.
 	if o.CaptureBodies {
 		r.sseKeep = int64(o.CaptureMaxBytes)
@@ -59,7 +66,7 @@ func (r *recorder) WriteHeader(code int) {
 	h := r.Header()
 	r.contentType = strings.ToLower(h.Get("Content-Type"))
 	r.contentEncoding = strings.ToLower(strings.TrimSpace(h.Get("Content-Encoding")))
-	if strings.HasPrefix(r.contentType, "text/event-stream") {
+	if !r.noScan && strings.HasPrefix(r.contentType, "text/event-stream") {
 		r.sse = true
 		r.scanner = capture.NewSSEUsageScanner(maxSSELine)
 		r.limit = r.sseKeep
@@ -73,7 +80,7 @@ func (r *recorder) Write(p []byte) (int, error) {
 	}
 	n, err := r.ResponseWriter.Write(p)
 	r.bytes += int64(n)
-	if n > 0 {
+	if n > 0 && !r.noScan {
 		r.observe(p[:n])
 	}
 	return n, err

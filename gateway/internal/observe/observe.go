@@ -10,6 +10,8 @@ import (
 
 	"github.com/veeky-ai/tracewell-gateway/internal/capture"
 	"github.com/veeky-ai/tracewell-gateway/internal/ids"
+	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
+	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
 	"github.com/veeky-ai/tracewell-gateway/internal/redact"
 )
 
@@ -31,6 +33,7 @@ type Observation struct {
 	Streaming     bool
 	ResponseBytes int64         // bytes sent to the client (wire size, i.e. compressed if gzip)
 	Usage         capture.Usage // nil = unknown
+	Timings       *nettrace.Snapshot
 
 	Headers map[string]string // redacted request headers; nil unless CaptureHeaders
 	Input   string            // request body prefix; empty unless CaptureBodies
@@ -52,30 +55,49 @@ type Options struct {
 	CaptureHeaders  bool
 	RedactHeaders   []string // extra header names to redact (a built-in list is always applied)
 	Sink            Sink
+	Metrics         *metrics.Metrics // optional
 	Now             func() time.Time // defaults to time.Now
 }
 
-// Handler returns next wrapped with observation. Only POST requests are observed:
-// listing models or health probes are not LLM calls.
+// Handler returns next wrapped with observation. Every request is timed and counted in
+// metrics; only POST requests are inspected and reported, since listing models is not an
+// LLM call.
 func Handler(next http.Handler, o Options) http.Handler {
 	now := o.Now
 	if now == nil {
 		now = time.Now
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || o.Sink == nil {
-			next.ServeHTTP(w, r)
-			return
-		}
+		// Every request is timed and counted; only POSTs (LLM calls) are inspected and reported.
+		report := r.Method == http.MethodPost && o.Sink != nil
 
 		start := now()
-		info, _ := capture.PeekRequest(r, o.PeekBytes) // a read error replays to the upstream
+		timings := nettrace.New()
+		r = r.WithContext(nettrace.With(r.Context(), timings))
+
+		var info capture.RequestInfo
 		var hdr map[string]string
-		if o.CaptureHeaders {
-			hdr = redact.Headers(r.Header, o.RedactHeaders)
+		if report {
+			info, _ = capture.PeekRequest(r, o.PeekBytes) // a read error replays to the upstream
+			if o.CaptureHeaders {
+				hdr = redact.Headers(r.Header, o.RedactHeaders)
+			}
 		}
-		rec := newRecorder(w, o)
+		rec := newRecorder(w, o, report)
 		next.ServeHTTP(rec, r)
+
+		end := now()
+		status := rec.status
+		if status == 0 {
+			status = statusClientClosed
+		}
+		snap := timings.Snapshot()
+		if o.Metrics != nil {
+			o.Metrics.ObserveRequest(status, end.Sub(start), snap)
+		}
+		if !report {
+			return
+		}
 
 		obs := Observation{
 			ID:            ids.New(),
@@ -84,15 +106,13 @@ func Handler(next http.Handler, o Options) http.Handler {
 			Method:        r.Method,
 			Path:          r.URL.Path,
 			Start:         start,
-			End:           now(),
-			Status:        rec.status,
+			End:           end,
+			Status:        status,
 			Streaming:     rec.sse,
 			ResponseBytes: rec.bytes,
 			Usage:         rec.usage(),
+			Timings:       &snap,
 			Headers:       hdr,
-		}
-		if obs.Status == 0 {
-			obs.Status = statusClientClosed
 		}
 		if o.CaptureBodies {
 			obs.Input = truncate(info.Prefix, o.CaptureMaxBytes)
