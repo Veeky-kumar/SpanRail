@@ -1,0 +1,16 @@
+PASS  6 generations stored
+PASS  fresh call: dns+connect measured
+PASS  reused call: no dns/connect/tls
+PASS  reused call flagged connReused
+PASS  ttfb reflects 40ms upstream latency
+PASS  usage recorded (non-stream)
+PASS  usage recorded (stream, include_usage)
+PASS  usage unknown (stream without include_usage)
+PASS  stream flagged
+PASS  attached to existing trace
+PASS  no new root created for attached call
+PASS  upstream 500 -> ERROR level
+PASS  authorization header redacted
+PASS  provider key stored nowhere
+PASS  no ingest errors
+ALL E2E CHECKS PASSED

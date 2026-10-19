@@ -196,3 +196,36 @@ is never sent (no price table, so no invented cost).
 
 ### Pieces to type yourself
 `Reporter.Enqueue`, `Reporter.worker`, `Reporter.Close`, `backoff`, and the shutdown order in `main`.
+
+## Milestone 5: trace linking and the end-to-end check
+
+### Trace linking
+- A caller sends `X-Tracewell-Trace-Id` (and optionally `X-Tracewell-Parent-Observation-Id`). The
+  generation then attaches to that trace instead of creating a new root. Without the header the
+  gateway sends `trace-create` first (in Tracewell a trace is its own root observation: id == traceId).
+- The ids end up in JSON and in database keys, so they must match `^[A-Za-z0-9_.:-]{1,128}$`.
+  An invalid value is **ignored, not rejected**: the LLM call must never fail because of our
+  bookkeeping. A parent without a valid trace is dropped too.
+- `X-Tracewell-*` headers are **removed before forwarding**, so the provider never sees them.
+
+### What the review taught (and the bug that was mine)
+An independent review of milestones 1-4 found real problems, now fixed with tests:
+`ReverseProxy` panics with `http.ErrAbortHandler` when a client leaves mid-stream, which skipped our
+recording (fix: recover, record, re-panic); `http.ServeMux` redirects odd paths (a proxy must not);
+a long prompt can push `"model"` past the peek window (fallback: the response's model); the peek
+read had no deadline; `/readyz` could never answer 503 because the listener closed first.
+While fixing the stall test I lost time to my own mistake: a scripted `str.replace` matched nothing
+and failed silently, so the fix was never in the file. The goroutine dump pointed at the exact line.
+Lesson: assert that an edit applied, and debug from evidence (goroutine dump) rather than theory.
+
+### Interview questions
+1. *Why ignore a bad trace header instead of returning 400?* Observability must not break the call.
+2. *Why recover and re-panic in the middleware?* ReverseProxy uses the panic to abort the connection;
+   we need to observe the call but must not change that behaviour.
+3. *Why not `ServeMux`?* It canonicalises paths and redirects, so the upstream would not receive what the client sent.
+4. *Why leave the read deadline expired after a failed peek?* Otherwise net/http tries to drain the rest of the promised body from a silent client with no time limit.
+5. *What does the E2E script prove that unit tests cannot?* That the real Tracewell schema, worker and
+   Postgres accept what we send, and that the pieces agree on ids and field names.
+
+### Pieces to type yourself
+`traceLink` and the recover/record/re-panic block in `observe.Handler`, and `classify207` in `report/sender.go`.
