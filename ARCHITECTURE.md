@@ -275,9 +275,10 @@ not a replacement. Verified directly: stopped the standalone worker container, s
 the web container alone with the flag set, and confirmed a real trace was both ingested
 and fully processed by that single process.
 
-## Go gateway (`gateway/`) — implemented, verified end to end; CI not yet run; UI not viewed
+## Go gateway (`gateway/`) — implemented, verified end to end; CI green; UI not viewed
 
-A separate Go service (own `go.mod`, stdlib plus `prometheus/client_golang`) that sits in front of an
+A separate service written in Go (own `go.mod`, Go 1.27.2, stdlib plus `prometheus/client_golang`; it shares no
+code, runtime or build with the Node app) that sits in front of an
 OpenAI-compatible provider API as a reverse proxy and reports each call to Tracewell as a generation, with
 network timing. It talks to Tracewell **only through the existing public HTTP API**
 (`POST /api/public/ingestion`, Basic auth with the project key pair). Nothing in the Next.js app, the
@@ -312,11 +313,13 @@ Decisions worth knowing, each tied to something verified in this repository:
 
 Verified (see `gateway/RESULTS.md` for numbers and raw output): 173 passing Go tests under `-race` (plus 13 for the UI parser); a scripted E2E
 (15 assertions) against Postgres + Redis + the web app + the worker; SSE passthrough that fails if the proxy
-buffers (mutation-checked); real SIGTERM flush in a hardened container; load tests with zero errors; two independent code
+buffers (mutation-checked); real SIGTERM flush in a hardened container; load tests with zero errors; three code
 reviews and an independent security review whose findings were each verified and fixed with a test; `govulncheck` clean
-(it found 9 stdlib vulnerabilities in Go 1.27.0, so 1.27.2 is required).
+(it found 9 stdlib vulnerabilities in Go 1.27.0, so 1.27.2 is required). CI (`.github/workflows/gateway.yml`: gofmt, vet,
+race tests, build, `govulncheck`, Docker build) has run green on GitHub; its first run failed because the pinned
+`govulncheck` v1.1.4 crashed on Go 1.27 sources, which only the Linux build exposed, so the pin is now v1.9.0.
 
-Not verified, or known gaps: the GitHub Actions workflow has never run; timing against a real HTTPS provider or
+Not verified, or known gaps: timing against a real HTTPS provider or
 HTTP/2 (only local servers); streamed usage exists only when the client asks for it (`include_usage`) and only in
 OpenAI shape; the queue is in memory, so a crash loses unsent events; no authentication of the gateway's own
 callers; the timing breakdown component on the generation detail (`src/components/GatewayTiming.tsx`, additive: it renders
@@ -348,7 +351,8 @@ column store; identity/config data doesn't).
 
 ## Stack
 
-Node 24 / TypeScript, a single npm project (no monorepo tooling — see below), Next.js
+Node 24 / TypeScript for the app, plus an optional Go 1.27 service (`gateway/`, its own module) for the LLM
+proxy. The Node side is a single npm project (no monorepo tooling — see below), Next.js
 (App Router) for dashboard + public API, a separate Node worker process for BullMQ
 consumers, Prisma + Postgres, Redis for the queue, hand-written Tailwind components
 (no shadcn/ui or other component library pulled in) for the dashboard, NextAuth v5 for

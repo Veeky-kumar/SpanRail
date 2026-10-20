@@ -159,8 +159,10 @@ OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on th
 
 ## Not verified
 
-* The GitHub Actions workflow (`.github/workflows/gateway.yml`) has **never run**; it was only written.
-  The same commands were run locally, but not on a GitHub runner.
+* The GitHub Actions workflow (`.github/workflows/gateway.yml`) was only written, not run, when the numbers
+  above were taken. It has since run green on GitHub (gofmt, vet, race tests, build, `govulncheck`, Docker build);
+  its first run failed because `govulncheck` v1.1.4 crashed on the Linux build, so it is pinned to v1.9.0. The E2E and
+  benchmarks are not part of CI; they were run by hand.
 * **The dashboard timing breakdown was never viewed in a browser.** Its logic is unit-tested and the component
   type-checks, but its appearance (spacing, dark mode, the bar) is unchecked.
 * Timing against a real HTTPS provider and HTTP/2; TLS timing only against a local `httptest` TLS server.

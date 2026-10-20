@@ -9,7 +9,8 @@ Tracewell does differently and why, and a full accounting of known gaps.
 
 Working MVP: tracing (nested spans/generations, errors, cost/usage), prompt versioning,
 deterministic-scorer evaluation (datasets + runs + regression comparison), dashboard auth
-with per-project access control, and an analytics overview. **Not** production-hardened —
+with per-project access control, an analytics overview, and an optional Go gateway that
+records LLM calls (with network timing) without changing the calling app. **Not** production-hardened —
 see "Known limitations" below before exposing this to anything but a trusted network.
 
 ## Quick start (local development)
@@ -111,10 +112,31 @@ See [docker-compose.prod.yml](./docker-compose.prod.yml) and the Dockerfiles und
 
 ## Go gateway (optional)
 
-[`gateway/`](./gateway) is a small Go reverse proxy that sits in front of an OpenAI-compatible API and
-reports every call to Tracewell as a generation, including DNS / connect / TLS / time-to-first-byte timings.
-It uses only the public ingestion API. See [gateway/README.md](./gateway/README.md); measured results are in
-[gateway/RESULTS.md](./gateway/RESULTS.md).
+[`gateway/`](./gateway) is a separate service written in **Go** (its own module, standard library plus
+`prometheus/client_golang`). It is a reverse proxy in front of an OpenAI-compatible API: it forwards each
+request unchanged, including streaming responses, and reports the call to Tracewell as a generation with
+DNS / connect / TLS / time-to-first-byte timings. It talks to Tracewell only through the public ingestion API,
+so nothing in the Next.js app or the worker depends on it.
+
+```
+your app --> tracewell-gateway (Go) --> LLM provider
+                   |
+                   +--(async, batched)--> Tracewell  POST /api/public/ingestion
+```
+
+It needs **Go 1.27.2+** to build natively (the Docker image builds it for you). Quick start, from the repo
+root, with the key pair that `npm run db:seed` printed:
+
+```bash
+export TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-...
+docker compose --profile gateway up -d --build gateway   # listens on 127.0.0.1:8080
+```
+
+Then point your OpenAI-compatible client's base URL at `http://localhost:8080/v1`; the provider key stays in the
+client. Full configuration, the Go test/CI commands and the measured results are in
+[gateway/README.md](./gateway/README.md) and [gateway/RESULTS.md](./gateway/RESULTS.md). The gateway has its own
+CI workflow ([`.github/workflows/gateway.yml`](./.github/workflows/gateway.yml)): gofmt, vet, race-detector tests,
+build, `govulncheck` and a Docker image build.
 
 ## Known limitations
 
@@ -132,8 +154,11 @@ summarized here:
 - **Postgres-only storage.** No ClickHouse/blob-storage tier yet — fine at MVP volumes,
   documented as the first thing to add if ingestion scale or analytics query latency
   demands it (see ARCHITECTURE.md's "Scaling path").
-- **No automated end-to-end test suite.** Automated coverage is unit-level (pure logic);
+- **No automated end-to-end test suite for the Node app.** Automated coverage is unit-level (pure logic);
   the ingestion→worker→dashboard pipeline, auth, and eval flows are verified by the
-  `examples/*.ts` scripts and ad hoc checks, not a repeatable CI-run E2E suite.
-- **SDK is TypeScript-only**, local-source (not published to npm), and has no
+  `examples/*.ts` scripts and ad hoc checks, not a repeatable CI-run E2E suite. The Go gateway is the exception:
+  it has a scripted E2E (`gateway/scripts/e2e.sh`) against the full stack, run by hand, and its unit tests,
+  vet and vulnerability check run in CI.
+- **SDK is TypeScript-only** (the Go gateway is an alternative that needs no SDK, but it only understands
+  OpenAI-compatible HTTP traffic), local-source (not published to npm), and has no
   dataset-specific helper methods — dataset/run endpoints are called directly over HTTP.
