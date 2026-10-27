@@ -23,21 +23,22 @@ function allIds(nodes: SerializedTreeNode[], out: string[] = []) {
   return out;
 }
 
-function typeBadgeColor(type: string) {
-  switch (type) {
-    case "GENERATION":
-      return "bg-violet-500/15 text-violet-600 dark:text-violet-400";
-    case "EVENT":
-      return "bg-sky-500/15 text-sky-600 dark:text-sky-400";
-    default:
-      return "bg-slate-500/15 text-slate-600 dark:text-slate-400";
-  }
+// The shape tells the kind of span at a glance: diamond = LLM generation, circle = event,
+// square = any other span. The word is still available to screen readers and in the detail.
+function TypeGlyph({ type }: { type: string }) {
+  const shape = type === "GENERATION" ? "rotate-45 rounded-[1px] bg-accent" : type === "EVENT" ? "rounded-full border border-muted" : "rounded-[1px] border border-muted";
+  return (
+    <span className="flex h-4 w-4 shrink-0 items-center justify-center" title={type.toLowerCase()}>
+      <span aria-hidden className={`h-2 w-2 ${shape}`} />
+      <span className="sr-only">{type.toLowerCase()}</span>
+    </span>
+  );
 }
 
-function levelColor(level: string) {
-  if (level === "ERROR") return "border-l-red-500";
-  if (level === "WARNING") return "border-l-amber-500";
-  return "border-l-transparent";
+function levelEdge(level: string, selected: boolean) {
+  if (level === "ERROR") return "border-l-fault";
+  if (level === "WARNING") return "border-l-fault/50";
+  return selected ? "border-l-accent" : "border-l-transparent";
 }
 
 export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
@@ -76,70 +77,80 @@ export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
   const selected = rows.find((r) => r.observation.id === selectedId)?.observation ?? null;
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_1fr]">
-      <div className="overflow-hidden rounded-xl border border-border bg-surface">
-        <div className="max-h-[70vh] overflow-y-auto">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <div className="self-start overflow-hidden rounded-[10px] border border-rule bg-surface">
+        <div className="max-h-[70vh] overflow-y-auto" role="list" aria-label="Spans in this trace">
           {rows.map((row) => {
             const obs = row.observation;
             const hasChildren = row.children.length > 0;
             const isExpanded = expanded.has(obs.id);
+            const isSelected = selectedId === obs.id;
             const duration =
               obs.startTime !== null && obs.endTime !== null ? obs.endTime - obs.startTime : null;
             const leftPct = obs.startTime !== null ? ((obs.startTime - minStart) / span) * 100 : 0;
-            const widthPct = duration !== null ? Math.max((duration / span) * 100, 0.5) : 0.5;
+            const widthPct = duration !== null ? Math.max((duration / span) * 100, 1) : 1;
 
             return (
-              <button
+              <div
                 key={obs.id}
-                onClick={() => setSelectedId(obs.id)}
-                className={`flex w-full items-center gap-2 border-b border-l-2 border-border px-3 py-2 text-left text-sm transition-colors duration-100 last:border-b-0 hover:bg-canvas ${levelColor(
+                role="listitem"
+                className={`flex h-9 items-center border-b border-l-2 border-border transition-colors duration-100 last:border-b-0 ${levelEdge(
                   obs.level,
-                )} ${selectedId === obs.id ? "bg-canvas" : ""}`}
-                style={{ paddingLeft: `${row.depth * 16 + 12}px` }}
+                  isSelected,
+                )} ${isSelected ? "bg-canvas" : "hover:bg-canvas/60"}`}
+                style={{ paddingLeft: `${row.depth * 14 + 6}px` }}
               >
                 {hasChildren ? (
-                  <span
-                    role="button"
-                    tabIndex={-1}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggle(obs.id);
-                    }}
-                    className="flex h-4 w-4 shrink-0 items-center justify-center text-muted"
+                  <button
+                    type="button"
+                    onClick={() => toggle(obs.id)}
+                    aria-expanded={isExpanded}
+                    aria-label={`${isExpanded ? "Collapse" : "Expand"} ${obs.name ?? "span"}`}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
                   >
-                    {isExpanded ? "▾" : "▸"}
-                  </span>
+                    <span aria-hidden className={`text-[10px] transition-transform duration-100 ${isExpanded ? "rotate-90" : ""}`}>
+                      ▸
+                    </span>
+                  </button>
                 ) : (
-                  <span className="w-4 shrink-0" />
+                  <span className="w-6 shrink-0" />
                 )}
 
-                <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${typeBadgeColor(obs.type)}`}>
-                  {obs.type.slice(0, 3)}
-                </span>
-
-                <span className="min-w-0 flex-1 truncate font-medium">{obs.name ?? "(unnamed)"}</span>
-
-                <span className="hidden shrink-0 text-xs text-muted sm:inline">{formatDuration(duration)}</span>
-
-                <span className="relative hidden h-1.5 w-20 shrink-0 overflow-hidden rounded-full bg-canvas md:block">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(obs.id)}
+                  aria-current={isSelected ? "true" : undefined}
+                  className="flex h-full min-w-0 flex-1 items-center gap-2 pr-3 text-left text-sm focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+                >
+                  <TypeGlyph type={obs.type} />
+                  <span className="min-w-0 flex-1 truncate font-medium">{obs.name ?? "(unnamed)"}</span>
+                  <span className="hidden w-16 shrink-0 text-right text-xs tabular-nums text-muted sm:inline">
+                    {formatDuration(duration)}
+                  </span>
                   <span
-                    className="absolute inset-y-0 rounded-full bg-accent/70"
-                    style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                  />
-                </span>
-              </button>
+                    aria-hidden
+                    className="relative hidden h-2 w-28 shrink-0 rounded-[2px] bg-border md:block"
+                    title="Position and length on the trace's shared time axis"
+                  >
+                    <span
+                      className={`absolute inset-y-0 rounded-[2px] ${obs.level === "ERROR" ? "bg-fault" : "bg-t4"}`}
+                      style={{ left: `${Math.min(leftPct, 99)}%`, width: `${Math.min(widthPct, 100 - Math.min(leftPct, 99))}%` }}
+                    />
+                  </span>
+                </button>
+              </div>
             );
           })}
         </div>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface p-4">
+      <div className="rounded-[10px] border border-rule bg-surface">
         {selected ? (
           <div key={selected.id} className="reveal-fast">
             <ObservationDetail observation={selected} />
           </div>
         ) : (
-          <p className="text-sm text-muted">Select a span</p>
+          <p className="p-5 text-sm text-muted">Select a span to see its timing, input and output.</p>
         )}
       </div>
     </div>
@@ -149,11 +160,20 @@ export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
 function JsonBlock({ label, value }: { label: string; value: unknown }) {
   if (value === null || value === undefined) return null;
   return (
-    <div>
-      <div className="text-xs font-medium uppercase tracking-wide text-muted">{label}</div>
-      <pre className="mt-1 max-h-64 overflow-auto rounded-lg bg-canvas p-3 text-xs">
+    <section className="border-t border-border px-5 py-4">
+      <h4 className="text-sm font-semibold">{label}</h4>
+      <pre className="mt-2 max-h-64 overflow-auto rounded bg-canvas p-3 text-xs">
         {typeof value === "string" ? value : JSON.stringify(value, null, 2)}
       </pre>
+    </section>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-0.5 truncate text-sm font-medium tabular-nums">{children}</dd>
     </div>
   );
 }
@@ -163,66 +183,72 @@ function ObservationDetail({ observation }: { observation: SerializedObservation
     observation.startTime !== null && observation.endTime !== null
       ? observation.endTime - observation.startTime
       : null;
+  const hasTiming = observation.metadata !== null && observation.metadata !== undefined;
 
   return (
-    <div className="space-y-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${typeBadgeColor(observation.type)}`}>
-            {observation.type}
-          </span>
+    <div>
+      <header className="px-5 pb-4 pt-5">
+        <div className="flex items-center gap-2 text-xs text-muted">
+          <span>{observation.type.charAt(0) + observation.type.slice(1).toLowerCase()}</span>
           {observation.level !== "DEFAULT" && (
             <span
-              className={`rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
-                observation.level === "ERROR" ? "bg-red-500/15 text-red-600" : "bg-amber-500/15 text-amber-600"
+              className={`rounded border px-1.5 py-0.5 text-xs font-medium ${
+                observation.level === "ERROR" ? "border-fault/40 text-fault" : "border-rule text-ink"
               }`}
             >
-              {observation.level}
+              {observation.level === "ERROR" ? "Error" : "Warning"}
             </span>
           )}
         </div>
-        <h3 className="mt-1.5 text-base font-semibold">{observation.name ?? "(unnamed)"}</h3>
-        <p className="text-xs text-muted">
-          {formatDuration(duration)}
-          {observation.model ? ` · ${observation.model}` : ""}
-          {observation.totalCost !== null ? ` · $${observation.totalCost.toFixed(5)}` : ""}
-        </p>
+        <h3 className="mt-1 break-words text-lg font-semibold tracking-tight">{observation.name ?? "(unnamed)"}</h3>
+
+        <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+          <Fact label="Duration">{formatDuration(duration)}</Fact>
+          {observation.model && <Fact label="Model">{observation.model}</Fact>}
+          {observation.totalCost !== null && <Fact label="Cost">${observation.totalCost.toFixed(5)}</Fact>}
+          {observation.promptName && (
+            <Fact label="Prompt">
+              {observation.promptName}
+              {observation.promptVersion !== null ? ` v${observation.promptVersion}` : ""}
+            </Fact>
+          )}
+        </dl>
+
         {observation.statusMessage && (
-          <p className="mt-1 break-words text-xs text-red-500">{observation.statusMessage}</p>
+          <p className="mt-3 break-words text-sm text-fault">{observation.statusMessage}</p>
         )}
-        {observation.promptName && (
-          <p className="mt-1 text-xs text-muted">
-            Prompt: <span className="font-medium text-ink">{observation.promptName}</span>
-            {observation.promptVersion !== null ? ` v${observation.promptVersion}` : ""}
-          </p>
-        )}
-      </div>
+      </header>
+
+      {hasTiming && (
+        <div className="border-t border-border px-5 py-4 empty:hidden">
+          <GatewayTiming metadata={observation.metadata} />
+        </div>
+      )}
 
       <JsonBlock label="Input" value={observation.input} />
       <JsonBlock label="Output" value={observation.output} />
-      <GatewayTiming metadata={observation.metadata} />
       <JsonBlock label="Metadata" value={observation.metadata} />
       <JsonBlock label="Usage" value={observation.usageDetails} />
       <JsonBlock label="Cost breakdown" value={observation.costDetails} />
 
       {observation.scores.length > 0 && (
-        <div>
-          <div className="text-xs font-medium uppercase tracking-wide text-muted">Scores</div>
-          <div className="mt-1 flex flex-wrap gap-1.5">
+        <section className="border-t border-border px-5 py-4">
+          <h4 className="text-sm font-semibold">Scores</h4>
+          <div className="mt-2 flex flex-wrap gap-1.5">
             {observation.scores.map((s) => (
               <span
                 key={s.id}
                 title={s.comment ?? undefined}
-                className={`rounded-full border px-2 py-0.5 text-xs ${
-                  s.source === "EVAL" ? "border-violet-500/30 bg-violet-500/10" : "border-border"
+                className={`rounded border px-2 py-0.5 text-xs tabular-nums ${
+                  s.source === "EVAL" ? "border-accent/40" : "border-rule"
                 }`}
               >
-                {s.name}: {s.value ?? s.stringValue ?? "—"}
-                {s.source === "EVAL" && <span className="ml-1 text-violet-500">· eval</span>}
+                {s.name}: {s.value ?? s.stringValue ?? "-"}
+                {s.source === "EVAL" && <span className="ml-1 text-accent">eval</span>}
               </span>
             ))}
           </div>
-        </div>
+        </section>
       )}
     </div>
   );
