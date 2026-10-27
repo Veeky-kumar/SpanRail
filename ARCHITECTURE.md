@@ -1,372 +1,296 @@
-# Tracewell — Architecture & Design Decisions
+# Tracewell: architecture and design decisions
 
-Tracewell is an independent, self-hostable LLM observability/eval/prompt-management
-platform. It is informed by reverse-engineering Langfuse's open-source implementation
-(`../langfuse-reference`, MIT-licensed `web/`, `worker/`, `packages/` only — `ee/` was
-never read for design purposes) but is architecturally its own system: different
-storage topology, simplified trace model, different ingestion durability trade-off.
+Tracewell is a self-hostable LLM observability platform: traces, evaluations, prompt management and
+analytics, plus an optional Go gateway that measures where the time in each LLM call goes. This document
+describes how it fits together, why it is built that way, and what is not built yet.
 
-See `../langfuse-reference` research notes (not duplicated here) for what was actually
-verified by reading source vs. inferred vs. unknown. Nothing in this document claims a
-Langfuse internal behaves a certain way without that having been confirmed by reading
-its code.
-
-## Why this diverges from Langfuse's stack
-
-Langfuse runs Postgres (identity/config) + ClickHouse (analytics) + Redis (queue) +
-S3/MinIO (raw-event durability + replay). That's the right call at Langfuse's ingestion
-volume. It roughly triples self-host operational complexity for an MVP. Tracewell
-starts with **Postgres only** and documents ClickHouse as an explicit, evidence-triggered
-future migration (see "Scaling path" below) rather than a day-one requirement.
-
-## Core model: derived trace, not stored trace
-
-Verified in Langfuse's current source: there is no separate `traces` table — a trace is
-synthesized from a flat stream of observations where the root (no parent) carries
-trace-level fields. Tracewell adopts this directly: one `Observation` table,
-`parentObservationId` + `traceId` define the tree, and "trace metadata" (name, user,
-session, tags) is read off the root row.
-
-Tree-building, adapted from Langfuse's `ordering.ts`:
-1. Dedupe by id, keeping the earliest `startTime` on conflict.
-2. A node whose `parentObservationId` doesn't resolve within the same `traceId`
-   (missing, or arrived out of order) is promoted to root rather than dropped.
-3. DFS from roots, siblings ordered by `startTime`.
-4. Any node unreachable from a root (cycle/malformed data) is still surfaced, appended
-   at depth 0 — never silently dropped.
-
-## Ingestion flow (MVP)
+## The system at a glance
 
 ```
-SDK batch --> POST /api/public/ingestion
-  -> API-key auth (public+secret pair, salted hash, no plaintext secret stored)
+                    +-------------------+
+ your app --------> |  Go gateway       |-----------> LLM provider
+ (OpenAI-compatible | (optional proxy)  |
+  client)           +---------+---------+
+                              | Observation reports (background, bounded queue)
+ your app --SDK-----+         v
+                    +--> POST /api/public/ingestion  (Next.js app, API-key auth)
+                              |  validate -> stage in Postgres -> enqueue
+                              v
+                         Redis / BullMQ "ingestion" queue
+                              |
+                              v
+                         Worker (Node)  merges staged events into Observation rows
+                              |
+                              v
+                         Postgres  <---- Next.js dashboard (sessions, projects, traces,
+                                         prompts, datasets, analytics, settings)
+```
+
+Runtime pieces:
+
+| Piece | What it is | Talks to |
+|---|---|---|
+| Web app | Next.js 15 (App Router): dashboard pages, server actions and the public HTTP API | Postgres, Redis |
+| Worker | Node process running BullMQ consumers (can also run inside the web process, see below) | Postgres, Redis |
+| Postgres | The only data store: identity, configuration, staged events, observations, scores, prompts, datasets | none |
+| Redis | The job queue between ingestion and the worker | none |
+| Gateway | Optional Go reverse proxy in `gateway/` with its own `go.mod`; reports calls over the public API | provider, web app |
+| SDK | `sdk/index.ts`, a TypeScript client for the ingestion API (local source, not yet published) | web app |
+
+## Storage choice: Postgres only
+
+Tracewell starts with Postgres as the single data store and keeps Redis only as a queue. That keeps a
+self-hosted install to one database plus Redis. A column store for the high-volume tables is a documented,
+evidence-triggered future step (see "Scaling path"), not a day-one requirement.
+
+## Core model: a trace is derived, not stored
+
+There is no separate `traces` table. A trace is synthesised from a flat set of observations that share a
+`traceId`. One `Observation` table holds every span, generation and event; `parentObservationId` and
+`traceId` define the tree, and trace-level fields (name, user, session, tags) are read off the root row
+(the one with no parent).
+
+Tree building (`src/server/traceTree.ts`):
+
+1. A node whose `parentObservationId` is missing, unresolved within the trace, or its own id is promoted to
+   a root instead of being dropped (events can arrive out of order).
+2. Roots and siblings are ordered by `startTime`.
+3. Children are attached recursively, producing nodes with a depth.
+4. Anything unreachable from a root (a parent cycle, malformed data) is still shown, appended at depth 0.
+   Data is never silently lost.
+
+## Ingestion flow
+
+```
+SDK or gateway batch --> POST /api/public/ingestion
+  -> API-key auth (public + secret pair; the secret is stored only as a salted hash)
   -> per-event Zod validation (discriminated union by event type)
-  -> upsert into IngestEvent staging table (idempotency key = project+event id)
-  -> enqueue {stagingId} on BullMQ "ingestion" queue
-  -> respond 207 multi-status immediately (ack before processing, matches SDKs
-     that must not block the host application on trace delivery)
+  -> upsert into the IngestEvent staging table (idempotency key = project + event id)
+  -> enqueue {stagingId} on the BullMQ "ingestion" queue
+  -> respond 207 multi-status immediately (acknowledge before processing, so a client
+     is never blocked on trace delivery)
 
 Worker:
-  pulls {stagingId} -> reads staging row -> merges into Observation
-  (create/update pairs for the same id are merged, not overwritten wholesale —
-  a "start" event followed by an "end" event with output/usage fills in fields,
-  doesn't erase ones not present in the second payload)
-  -> marks staging row processed
+  pulls {stagingId} -> reads the staging row -> merges it into Observation
+  (a create followed by an update for the same id is merged, not overwritten: the
+  update fills in output and usage without erasing fields it does not carry)
+  -> marks the staging row processed
 ```
 
-Deliberate simplification vs. Langfuse: no S3 blob-first write. The staging table in
-Postgres is the durability layer for the MVP. This is the first thing to replace with
-real object storage once replay/audit-at-scale is needed — noted here so it isn't
-mistaken for an oversight later.
+Durability trade-off: the staging table in Postgres is the durability layer. There is no object-storage
+copy of raw events, so there is no replay log. Adding one is the first step if replay or audit at scale is
+needed. It is recorded here so the omission is not mistaken for an oversight.
 
-## Data model (MVP scope)
+Cost: only SDK-reported cost is stored (`costDetails` summed into `totalCost`). Tracewell does not compute
+cost from a price table yet, and usage and cost are never invented when unknown.
 
-- `Project`, `ApiKey` (public/secret pair, SHA-256+salt hash — bcrypt is unnecessary
-  cost here since the secret itself is a high-entropy UUID, same reasoning Langfuse
-  uses)
-- `Observation` (the single event/span/generation/trace-root table described above)
-- `Score` (trace- or observation-scoped, `source` distinguishes API/annotation/eval
-  origin, `dataType` numeric/categorical/boolean)
-- `Prompt` (immutable version rows, mutable `labels: string[]` — moving a label is a
-  transaction that strips it from the old version and adds it to the new one, same
-  mechanism Langfuse uses and for the same reason: labels need to move atomically
-  without a separate pointer table)
-- Dataset/DatasetItem/DatasetRun/Eval models: scaffolded after the tracing slice is
-  verified end-to-end, not before (see milestone plan).
+## Data model
 
-## Prompt management (implemented, verified)
+- `User`, `Project`, `ProjectMember` (role `OWNER` or `MEMBER`), `ApiKey`
+- `IngestEvent`, the staging table described above
+- `Observation`, the single span, generation and event table
+- `Score`, scoped to a trace or an observation; `source` distinguishes API, annotation and evaluation
+  origin; `dataType` is numeric, categorical or boolean
+- `Prompt`, immutable version rows with a mutable `labels` array
+- `Dataset`, `DatasetItem`, `DatasetRun`, `DatasetRunItem`
 
-Immutable versioned rows (`Prompt.version`, auto-incremented per `(projectId, name)`) with
-a mutable `labels: string[]` on each row — moving a label (e.g. `production`) off
-whichever older version currently holds it and onto the new version happens inside the
-same transaction as the insert. Same mechanism Langfuse uses, verified by reading its
-source, and verified here by direct API testing (`POST /api/public/prompts` twice, then
-confirming the label moved and `GET .../support-agent?label=production` resolves the new
-version). The link from a generation back to the prompt it used is denormalized
-(`Observation.promptName` / `promptVersion`, no FK) — analytics data, not referential
-integrity, same reasoning as the ingestion flow above.
+### API keys
 
-## Evaluation (implemented: deterministic scorers; stubbed: LLM-as-judge)
+A key is a public/secret pair. The secret is a high-entropy random token, so a fast salted SHA-256 is used
+for verification (`src/server/apiKey.ts`). A slow password hash would add cost without adding security,
+and a lookup runs on every ingestion call. There is no cache in `src/server/apiKeyAuth.ts` yet: every
+request does a Postgres lookup, and a cache is the next step once ingestion rate makes that a bottleneck.
 
-`Dataset` → `DatasetItem` → `DatasetRun` → `DatasetRunItem`. A `DatasetRunItem` snapshots
-the item's `input`/`expectedOutput` at link time (`inputSnapshot`/`expectedOutputSnapshot`),
-so a later edit to the dataset item doesn't retroactively change what a past run was
-judged against — a simplified version of Langfuse's bitemporal dataset-item versioning,
-achieving the same honesty-of-comparison goal without the full bitemporal model.
+## Prompt management
 
-Deterministic scorers (`exact_match`, `contains`, `json_valid`, in `src/server/scorers.ts`)
-need no external service and run automatically when a run item is linked
-(`POST /api/public/datasets/:id/runs/:runId/items`), writing a `Score` row with
-`source: "EVAL"`. Verified end-to-end with a deliberately-wrong test case
-(`examples/run-dataset-eval.ts`) to confirm the scorer actually discriminates pass/fail
-rather than trivially reporting success.
+Prompt rows are immutable and versioned: `Prompt.version` increments per `(projectId, name)`. Each row has
+a mutable `labels: string[]`. Moving a label such as `production` strips it from the version that held it
+and adds it to the new one in the same transaction as the insert, so a label is never held by two versions
+and never needs a separate pointer table.
 
-**LLM-as-judge is architecturally anticipated but not implemented**: it would need a real
-model provider and incurs real cost per evaluation, which wasn't approved for this pass.
-Scorer names are namespaced (`exact_match` etc. for code-based; a future judge would use
-an `llm_judge:*` prefix) specifically so the UI can keep telling deterministic and
-model-based scores apart once a judge exists — see Phase 4C's requirement to "clearly
-distinguish deterministic metrics from model-based judgments." Do not read this as
-"evaluation is done" — it is done for the deterministic half only.
+The link from a generation to the prompt it used is denormalised (`Observation.promptName`,
+`promptVersion`, no foreign key). It is analytics data, not referential integrity, and a prompt may be
+edited or removed after the fact. Verified through the API: post a prompt twice, confirm the label moved,
+and confirm `GET .../support-agent?label=production` resolves the new version.
 
-## Dashboard authentication & project-level access control (implemented, verified)
+## Evaluation
 
-NextAuth (Auth.js) v5 with a Credentials provider and JWT sessions — no separate session
-store needed, no OAuth app registration required for a first run (a real constraint for
-self-hosters). Passwords are hashed with Node's built-in `scrypt` (per-user random salt,
-`timingSafeEqual` comparison) rather than bcrypt/argon2: no extra dependency, and scrypt
-is memory-hard, appropriate for low-entropy human-chosen secrets — different reasoning
-from the API-key hash (`src/server/apiKey.ts`), which uses a fast salted SHA-256 because
-that secret is already a high-entropy random token. Documented inline in both files so
-the difference isn't mistaken for inconsistency.
+`Dataset` -> `DatasetItem` -> `DatasetRun` -> `DatasetRunItem`. A run item snapshots the item's `input` and
+`expectedOutput` when it is linked (`inputSnapshot`, `expectedOutputSnapshot`). Editing a dataset item
+later does not change what a past run was judged against, so comparisons between runs stay honest.
 
-The NextAuth config is split (`auth.config.ts` edge-safe half + `auth.ts` full Node half)
-specifically so Prisma/scrypt never ends up in the Edge middleware bundle — the
-documented pattern for combining a Credentials provider with middleware-based route
-protection.
+Deterministic scorers (`exact_match`, `contains`, `json_valid`, in `src/server/scorers.ts`) need no
+external service and run automatically when a run item is linked
+(`POST /api/public/datasets/:id/runs/:runId/items`), writing a `Score` with `source: "EVAL"`. This was
+verified end to end with a deliberately wrong case (`examples/run-dataset-eval.ts`) to confirm the scorers
+discriminate between pass and fail.
 
-Project-level access control is a `ProjectMember` join table (`userId`, `projectId`,
-`role`), checked at a single choke point (`requireProjectMember` /
-`requireSessionProjectMember` in `src/server/projects.ts`) called from both the
-`[projectId]` layout (gates every page render) and independently inside every mutating
-server action (gates the action itself, not just whatever the UI happened to render) —
-same "a route cannot ship with no authorization check" discipline verified in Langfuse's
-own `createAuthedProjectAPIRoute` pattern. A non-member hitting a project URL directly
-gets a 404, not a 403, so project existence isn't leaked to someone without access.
+LLM-as-judge is anticipated but **not implemented**. It needs a real model provider and has a real cost per
+evaluation. Scorer names are namespaced (`exact_match` and so on for code; a future judge would use an
+`llm_judge:*` prefix) so the UI can keep deterministic and model-based scores apart. Evaluation is done
+for the deterministic half only.
 
-Verified end-to-end against the real NextAuth HTTP protocol (CSRF token fetch →
-credentials callback → session cookie), not mocked: an unauthenticated request to `/` or
-`/projects/:id` redirects to `/login`; a signed-in member of a project gets a 200; a
-signed-in user with zero memberships (including the pre-auth seeded project, which has
-no membership rows) gets a 404 on that project and an empty list on their own home page.
+## Authentication and project access
 
-Known boundary not yet built: no role-based permission *tiers* within a project beyond
-`OWNER`/`MEMBER` (both can currently do the same things) — the enum exists for future
-use, nothing branches on it yet. Don't read the enum's presence as finished RBAC.
+NextAuth (Auth.js) v5 with a Credentials provider and JWT sessions: no session store and no OAuth app
+registration needed for a first run. Passwords use Node's built-in `scrypt` (per-user salt,
+`timingSafeEqual`): no extra dependency, and memory-hard, which suits low-entropy human-chosen secrets. That
+is deliberately different from the API-key hash above, whose secret is already high-entropy; both files
+say so inline.
 
-## Analytics / overview dashboard (implemented, verified)
+The NextAuth config is split into `auth.config.ts` (edge-safe) and `auth.ts` (full Node), so Prisma and
+scrypt never enter the Edge middleware bundle. `trustHost: true` is set because a container's hostname is
+rarely `localhost`; for a fixed public domain, tighten it with an explicit `AUTH_URL`.
 
-`/projects/:id/analytics` — KPI row (trace count, error rate, total cost, p50/p95
-latency) plus trace-volume, cost, and top-models charts, with a 7/14/30-day filter.
-Latency percentiles use Postgres's native `percentile_cont` over per-trace durations
-rather than fetching rows and sorting in application code — an honest percentile, not
-an approximation, and exactly the kind of query Postgres is good at (see the MVP
-storage decision above). All queries are scoped by `projectId` and the selected date
-range so every number on the page agrees with every other.
+Access control is a `ProjectMember` join table checked at one choke point (`requireProjectMember` and
+`requireSessionProjectMember` in `src/server/projects.ts`). It is called from the `[projectId]` layout
+(every page render) and again inside every mutating server action, so a route cannot ship without an
+authorization check. A non-member opening a project URL gets a 404, not a 403, so the project's existence
+is not revealed.
 
-Charts are hand-built inline SVG (no charting library dependency) following the
-project's dataviz skill: single-hue sequential color per metric (never a dual-axis
-chart combining two measures), a table-view toggle on every chart (the accessibility
-twin), and a real interactive hover layer — per-bar tooltips on the bar charts, a
-snapping crosshair + tooltip on the cost line chart. The categorical reference palette
-was run through the skill's validator (`validate_palette.js`) rather than eyeballed, even
-though this page only uses single-hue sequential/status colors from it, not the full
-categorical set.
+Verified against the real NextAuth HTTP protocol (CSRF token, credentials callback, session cookie), not
+mocked. Known boundary: `OWNER` and `MEMBER` currently have the same permissions. The enum exists for
+future use and nothing branches on it.
 
-Verified against real ingested data (not just an empty-state screenshot): populated a
-project with 6 traces (one tool call deliberately erroring) and a 3-item dataset eval
-run, then confirmed the KPI tiles matched by direct DB cross-check — 9 traces, 66.7%
-error rate (6/9, correctly styled in the critical-red status color), summed cost
-matching the known per-trace cost, and both models (`gpt-4o-mini`, `demo-model`)
-appearing in the top-models chart in the correct count order.
+## The dashboard
 
-Known scaling note: these queries read `Observation` directly with no pre-aggregated
-rollup table. Fine at MVP volumes; the first thing to add if a project's data grows
-large enough to make this slow is a materialized daily-rollup table (or the ClickHouse
-migration already documented above), not a rewrite of this page.
+- **Home** (signed in): a three-column page. The left rail shows workspace numbers from the database
+  (projects, traces in the last seven days, calls through the gateway), a getting-started checklist derived
+  from data (project, API key, first trace, first gateway call), links to the self-hosting docs, and a
+  dated "what's new" list. The centre shows the user's own latest gateway-reported call on the time rail,
+  with real phase durations, or a labelled sample when there is no gateway data yet. The right column is an
+  "on this page" index, and the projects list and create form follow.
+- **Traces**: a list and a per-trace view. The span list puts every step on one time axis (a "ruler"), and
+  a generation's detail opens with its time budget so the slowest phase is the first thing read.
+- **Prompts**, **Datasets and runs**, **Settings** (API keys), and **Analytics**.
+- **Landing** (signed out, at `/`): a long-form page with an interactive "life of a call" explainer.
 
-## Phase 8 verification pass
+The isometric figures (the time rail and the intake desk on the auth pages) are built from a vendored kit
+in `src/components/iso/` (MIT, notice kept beside it). Every number a figure shows comes from a pure model;
+nothing on it is decorative data. Figures obey `prefers-reduced-motion` for automatic motion, and motion the
+user asks for (Play, Replay, stepping) still plays.
 
-Four things were done that hadn't been done before, each of which found and fixed at
-least one real issue — logged here rather than just claimed.
+### Analytics page
 
-**Automated unit tests** (`npm test`, 37 tests, all passing): trace-tree construction
-(parent-child nesting, sibling ordering, out-of-order/orphan promotion, self-reference
-and mutual-cycle guards, empty input), deterministic scorers, password/API-key hashing,
-and number formatting. Writing the formatting tests caught a real bug: `formatCompactNumber`
-compacted at 1,000 instead of matching the dataviz skill's own documented convention
-("1,284" stays a plain integer; only 10,000+ compacts to "K") — fixed the implementation,
-not the test. There is still no automated end-to-end suite; the ingestion→worker→
-dashboard pipeline, auth, and eval flows are covered by the `examples/*.ts` scripts and
-manual verification, not a repeatable CI-run E2E suite — see "Known MVP gaps."
+`/projects/:id/analytics`: KPI row (trace count, error rate, total cost, p50 and p95 latency) plus
+trace-volume, cost and top-model charts, filterable to 7, 14 or 30 days. Latency percentiles use Postgres
+`percentile_cont` over per-trace durations, so they are true percentiles, not approximations. Every query
+is scoped by `projectId` and the selected range, so every number on the page agrees.
 
-**A genuinely fresh containerized deployment** (`docker-compose.prod.yml` + Dockerfiles
-under `docker/`, Next.js `output: "standalone"`), torn down to zero volumes and rebuilt
-from scratch, not just assumed from `npm run dev` working. Found and fixed two real bugs
-in the process:
-1. The web image's standalone output strips dev tooling, including the `prisma` CLI —
-   `npx prisma migrate deploy` inside the web container silently tried to auto-install
-   an unrelated future major version from the registry instead of using the project's
-   pinned one. Fixed by running migration/seed commands through the `worker` container,
-   which keeps full `node_modules` (and documented this in the README rather than
-   leaving it to be rediscovered).
-2. NextAuth v5's `UntrustedHost` protection rejected every request the moment the
-   container's hostname wasn't literally `localhost` — a standard self-hosted/Docker
-   gotcha. Fixed with `trustHost: true` in `auth.config.ts`, with the trade-off
-   documented inline (appropriate for a single-tenant self-hosted app behind an
-   operator-controlled proxy; tighten to an explicit `AUTH_URL` if fronting with a fixed
-   public domain).
+Charts are hand-built inline SVG (no charting library): single-hue sequential colour per metric, no
+dual-axis charts, a table-view toggle on every chart, and a real hover layer. The categorical palette was
+checked with a validator script rather than by eye. Verified against real ingested data: with 9 traces
+(one erroring tool call) the KPI tiles matched a direct database cross-check.
 
-After both fixes: full auth flow, trace ingestion, worker processing, trace
-visualization, and the analytics page were all re-verified against the actual
-containerized app (not the local dev server) with real data.
+Scaling note: these queries read `Observation` directly with no rollup table. That is fine at MVP volume;
+the first remedy is a materialised daily rollup, not a rewrite.
 
-**A break-ui pass** (realistic worst-case data sent through the real SDK/ingestion
-boundary, per `examples/worst-case.ts` — not hand-edited database rows): a very long
-realistic trace name/user id/session id, a one-character span name, an emoji/mixed-script
-span name, a long realistic model id, a generation with no model name, a long status
-message containing an un-breakable URL, a 25-level-deep plus 500-item JSON payload, and
-score edge cases (`value: 0`, and a score with neither `value` nor `stringValue` set).
-Found and fixed:
-- **Broken**: scores attached at the trace level (`trace.score()`, no `observationId`)
-  were captured correctly by the API but invisible everywhere in the dashboard — Prisma's
-  `Observation.scores` relation only surfaces scores with a matching `observationId`, so
-  a null-`observationId` score had no observation to attach to in the UI. Fixed by
-  fetching trace-level scores separately and attaching them to the root observation
-  (`getTraceLevelScores` in `queries.ts`).
-- **Ugly**: a score with neither `value` nor `stringValue` rendered as an orphaned
-  trailing colon ("empty-score: "). Fixed with an explicit `"—"` fallback.
-- **Ugly/Fragile**: the trace list table had no width constraint on the trace name or
-  user id columns — an unbounded-length name (no limit exists anywhere in the schema or
-  validation) would push the table wider than its container. Fixed with `truncate` +
-  a `title` tooltip on both columns.
-- **Fragile, not fixed (documented instead)**: no field has an enforced maximum length
-  anywhere in the stack (SDK, Zod schemas, or the `TEXT`/`JSON` Postgres columns) — "no
-  limit" is itself the honest finding, not a false negative.
-- **Held up correctly, confirmed by this pass**: the observation-tree row name already
-  truncated properly (`min-w-0 flex-1 truncate`); the JSON input/output viewer handles
-  the deep+large payload with a scrollable, height-capped box rather than breaking
-  layout (500-item/25-level payload still rendered in 118ms, 60KB response); a `null`
-  model name renders nothing rather than the literal string "null"; a `0`-valued score
-  correctly rendered as `0` rather than being treated as falsy (nullish coalescing, not
-  `||`); UTF-8/emoji/mixed-script names round-tripped intact through Postgres.
-- Not re-verified interactively (no browser connection available this session): the
-  `break-words` fix on the status-message overflow case was applied and confirmed
-  present in the built output, but not click-verified by actually selecting that span in
-  a live browser — stated explicitly rather than claimed as fully checked.
+## The Go gateway (`gateway/`)
 
-**Database-restart resilience** (tested, not assumed): restarted the Postgres container
-out from under the running web and worker containers mid-session. Both reconnected on
-their own on the next query — no manual restart needed, no data loss (`IngestEvent`
-backlog returned to 0 unprocessed, and traces sent immediately after the Postgres
-restart, before the worker's connection pool had reconnected, still landed correctly).
-Worth recording precisely because a sloppier first pass at this exact test produced a
-false "the worker needs a manual restart" conclusion — caused by an unrelated
-inline-script tooling issue on the host shell, not the app — so the corrected,
-cleanly-isolated re-test is the one that counts.
-
-**Performance** (single Windows dev machine, Docker Desktop, not a tuned production
-host — numbers are illustrative, not a capacity guarantee): the ingestion API accepted
-~105 events/sec in a 200-event burst (50 traces × 4 events each); the worker's own
-processing lag per event (staging-table write to Postgres-committed observation) averaged
-18.7ms, max 42ms, with the full 200-event backlog fully drained by the time it was
-checked. No sustained load test was run — this is a sanity measurement at MVP scale, not
-a load-test result, and is reported as such.
-
-## Alternate deployment mode: in-process worker (`src/instrumentation.ts`)
-
-For platforms that only offer one long-running process type (no distinct
-"background worker" resource — Render's free tier is the motivating case), the
-ingestion worker can run inside the same Node process as the Next.js server via
-Next.js's `instrumentation.ts` hook, gated behind `ENABLE_INPROCESS_WORKER=true`. Local
-dev and the two-container Docker Compose deployment never set that variable, so they
-keep running web and worker as separate processes exactly as before — this is additive,
-not a replacement. Verified directly: stopped the standalone worker container, started
-the web container alone with the flag set, and confirmed a real trace was both ingested
-and fully processed by that single process.
-
-## Go gateway (`gateway/`) — implemented, verified end to end; CI green; UI not viewed
-
-A separate service written in Go (own `go.mod`, Go 1.27.2, stdlib plus `prometheus/client_golang`; it shares no
-code, runtime or build with the Node app) that sits in front of an
-OpenAI-compatible provider API as a reverse proxy and reports each call to Tracewell as a generation, with
-network timing. It talks to Tracewell **only through the existing public HTTP API**
-(`POST /api/public/ingestion`, Basic auth with the project key pair). Nothing in the Next.js app, the
-ingestion contract, the schema or the worker was changed to support it.
+A separate service (own `go.mod`, Go 1.27.2, standard library plus `prometheus/client_golang`; it shares no
+code or build with the Node app). It sits in front of an OpenAI-compatible provider API as a reverse proxy
+and reports each call to Tracewell as a generation with network timing: DNS, connect, TLS, time to first
+byte and transfer. It talks to Tracewell **only through the public ingestion API** (Basic auth with the
+project key pair). Nothing in the web app, schema, ingestion contract or worker was changed to support it.
 
 ```
 client --> gateway --> provider
               |
-              | Observation (bounded in-memory queue; drop + count when full)
+              | Observation (bounded in-memory queue; drop and count when full)
               v
-         batching workers --> POST /api/public/ingestion --> (staging table -> worker -> Observation)
+         batching workers --> POST /api/public/ingestion --> staging -> worker -> Observation
 ```
 
-Decisions worth knowing, each tied to something verified in this repository:
+Decisions, each tied to something verified in this repository:
 
-- **A trace is its own root observation** (`id == traceId`, no parent), so a call that starts a new trace
-  sends `trace-create` + `generation-create` + `generation-update`; a call that sets
-  `X-Tracewell-Trace-Id` skips the `trace-create` and attaches under the given trace/parent.
+- **A trace is its own root observation** (`id == traceId`, no parent). A call that starts a new trace sends
+  `trace-create`, `generation-create` and `generation-update`. A call that sets `X-Tracewell-Trace-Id` skips
+  `trace-create` and attaches under the given trace.
 - **All metadata goes on the `generation-update` only.** The worker replaces `Observation.metadata`
-  wholesale (it merges other fields), so splitting metadata across the create and update events would let
-  one erase the other. Confirmed by reading `worker/processors/ingestion.ts` and by the E2E run.
-- **Unknown is never zero.** Token usage is sent only when the provider reported it; a DNS/connect/TLS phase
-  is sent only when it happened (a reused keep-alive connection has none). The gateway has no price table, so
-  it never sends `costDetails` (Tracewell then shows usage but no cost for these calls).
-- **The request path never waits for Tracewell.** Observations go through a bounded queue; when it is full the
-  observation is dropped and counted. Verified against the real stack: 3,000 calls, 0 client errors, 1,034
-  delivered + 1,966 dropped, exactly 1,034 generations stored.
-- **Ingestion is idempotent per event id**, so the reporter retries (exponential backoff, full jitter) only the
-  events that failed retryably, including per-event 5xx inside a 207 response.
-- **The provider key never leaves the gateway path.** `Authorization` and other credential headers are always
-  redacted, bodies are off by default, and the Tracewell secret key type refuses to print itself.
+  wholesale while merging other fields, so splitting metadata across events would let one erase the other.
+  Confirmed by reading `worker/processors/ingestion.ts` and by the end-to-end run.
+- **Unknown is never zero.** Token usage is sent only when the provider reported it. A DNS, connect or TLS
+  phase is sent only when it happened (a reused keep-alive connection has none). The gateway has no price
+  table, so it never sends `costDetails`.
+- **The request path never waits for Tracewell.** Observations pass through a bounded queue; when it is
+  full the observation is dropped and counted. Verified against the real stack: 3,000 calls, 0 client
+  errors, 1,034 delivered, 1,966 dropped, and exactly 1,034 generations stored.
+- **Ingestion is idempotent per event id**, so the reporter retries (exponential backoff, full jitter) only
+  the events that failed retryably, including per-event 5xx inside a 207 response.
+- **The provider key never leaves the gateway path.** `Authorization` and other credential headers are
+  always redacted, bodies are off by default, and the Tracewell secret key type refuses to print itself.
+- **Clean shutdown.** On SIGTERM it stops taking calls and flushes what is queued.
 
-Verified (see `gateway/RESULTS.md` for numbers and raw output): 173 passing Go tests under `-race` (plus 13 for the UI parser); a scripted E2E
-(15 assertions) against Postgres + Redis + the web app + the worker; SSE passthrough that fails if the proxy
-buffers (mutation-checked); real SIGTERM flush in a hardened container; load tests with zero errors; three code
-reviews and an independent security review whose findings were each verified and fixed with a test; `govulncheck` clean
-(it found 9 stdlib vulnerabilities in Go 1.27.0, so 1.27.2 is required). CI (`.github/workflows/gateway.yml`: gofmt, vet,
-race tests, build, `govulncheck`, Docker build) has run green on GitHub; its first run failed because the pinned
-`govulncheck` v1.1.4 crashed on Go 1.27 sources, which only the Linux build exposed, so the pin is now v1.9.0.
+Verified (numbers and raw output in `gateway/RESULTS.md`): 173 Go tests under `-race` plus 13 for the UI
+parser; a scripted end-to-end run (15 assertions) against Postgres, Redis, the web app and the worker; SSE
+passthrough that fails if the proxy buffers (mutation-checked); a real SIGTERM flush in a hardened
+container; load tests with zero errors; three code reviews and an independent security review whose
+findings were each fixed with a test; and a clean `govulncheck` (it found 9 standard-library
+vulnerabilities in Go 1.27.0, so 1.27.2 is required). CI (`.github/workflows/gateway.yml`: gofmt, vet,
+race tests, build, `govulncheck`, Docker build) runs green on GitHub.
 
-Not verified, or known gaps: timing against a real HTTPS provider or
-HTTP/2 (only local servers); streamed usage exists only when the client asks for it (`include_usage`) and only in
-OpenAI shape; the queue is in memory, so a crash loses unsent events; no authentication of the gateway's own
-callers; the timing breakdown component on the generation detail (`src/components/GatewayTiming.tsx`, additive: it renders
-nothing without gateway metadata) is type-checked and unit-tested but has never been viewed in a browser; under sustained load above Tracewell's ingest rate the gateway drops events by design.
+Not verified, or known gaps: timing against a real HTTPS provider or HTTP/2 (only local servers were
+used); streamed usage exists only when the client asks for it (`include_usage`) and only in OpenAI shape;
+the queue is in memory, so a crash loses unsent events; the gateway does not authenticate its own callers;
+under sustained load above Tracewell's ingest rate it drops events by design.
 
-## Known MVP gaps (explicit, not hidden)
+## Deployment
 
-- No rate limiting yet. Langfuse's own self-host rate limiting is a no-op by default
-  (cloud-only) — explicitly not copying that gap; real rate limiting is a follow-up,
-  not deferred indefinitely.
-- No blob storage / replay log (see ingestion flow above).
-- No LLM-as-judge scorer (see Evaluation section above) — deterministic scorers only.
-- SDK has no dataset-specific helper methods yet; dataset/run endpoints are called
-  directly over HTTP (see `examples/run-dataset-eval.ts`).
-- No field has an enforced maximum length anywhere in the stack (SDK, Zod validation,
-  or the underlying Postgres columns) — found during the Phase 8 break-ui pass and
-  recorded as an honest "unbounded" rather than a false negative.
-- No automated end-to-end test suite. Automated coverage (`npm test`) is unit-level pure
-  logic; the ingestion→worker→dashboard pipeline, auth/access-control, and eval flows
-  are verified by the `examples/*.ts` scripts plus the manual checks recorded in this
-  project's development history, not a repeatable CI-run E2E suite.
+- **Local development**: `docker compose` for Postgres and Redis, `npm run dev` for the app, a separate
+  worker process.
+- **Self-host**: `docker-compose.prod.yml` with Dockerfiles under `docker/` (Next.js
+  `output: "standalone"`). Run migrations and seeds through the `worker` container, because the standalone
+  web image drops dev tooling, including the `prisma` CLI.
+- **Single-process platforms**: with `ENABLE_INPROCESS_WORKER=true`, `src/instrumentation.ts` starts the
+  ingestion worker inside the web process, for hosts that offer one process type only (Render's free tier is
+  the motivating case). Local development and the two-container deployment never set it. Verified by
+  stopping the standalone worker and confirming a real trace was ingested and processed by the web process
+  alone.
 
-## Scaling path (not built yet, documented so the MVP doesn't paint us into a corner)
+## Verification record
 
-If ingestion volume or analytical query latency actually demands it: add ClickHouse as
-a secondary store for `Observation`/`Score`, keep Postgres for identity/config/prompts,
-same split Langfuse uses, same reasoning (write-heavy time-series data benefits from a
-column store; identity/config data doesn't).
+Done and recorded so it is not merely claimed:
+
+- **Unit tests** (`npm test`): trace-tree construction (nesting, ordering, orphan promotion, self-reference
+  and cycle guards, empty input), scorers, password and key hashing, number formatting, and the figure
+  models. Writing the formatting tests found a real bug (compacting at 1,000 instead of 10,000), and the
+  implementation was fixed, not the test.
+- **A fresh containerised deployment**, torn down to zero volumes and rebuilt, found two real bugs: the
+  missing `prisma` CLI in the standalone web image (now run through the worker) and the NextAuth
+  `UntrustedHost` rejection outside `localhost` (`trustHost: true`).
+- **Worst-case data** sent through the real SDK and ingestion boundary (very long names, one-character and
+  emoji names, a 25-level-deep 500-item payload, unbreakable URLs, edge-case scores). Found and fixed:
+  trace-level scores invisible in the dashboard, an orphaned colon on empty scores, and unbounded table
+  columns. Documented, not fixed: no field has an enforced maximum length anywhere in the stack.
+- **Database restart**: restarting Postgres under the running web and worker containers lost no data, and
+  both reconnected on their own.
+- **Performance** (one Windows machine under Docker Desktop, not a capacity guarantee): about 105 events/s
+  accepted in a 200-event burst, worker lag averaging 18.7 ms (max 42 ms). No sustained load test was run.
+
+## Known MVP gaps
+
+- No rate limiting on the ingestion API or the dashboard.
+- No password reset or email flow, and sign-up is open.
+- No blob storage or replay log.
+- No LLM-as-judge scorer; deterministic scorers only.
+- The SDK is TypeScript only, not published, and has no dataset helper methods.
+- No field has an enforced maximum length.
+- `OWNER` and `MEMBER` have identical permissions.
+- No automated end-to-end suite for the Node app; the gateway has a scripted one, run by hand.
+
+## Scaling path
+
+If ingestion volume or analytical query latency demands it: add ClickHouse as a secondary store for
+`Observation` and `Score`, keep Postgres for identity, configuration and prompts. Write-heavy time-series
+data benefits from a column store; identity and configuration data do not.
 
 ## Stack
 
-Node 24 / TypeScript for the app, plus an optional Go 1.27 service (`gateway/`, its own module) for the LLM
-proxy. The Node side is a single npm project (no monorepo tooling — see below), Next.js
-(App Router) for dashboard + public API, a separate Node worker process for BullMQ
-consumers, Prisma + Postgres, Redis for the queue, hand-written Tailwind components
-(no shadcn/ui or other component library pulled in) for the dashboard, NextAuth v5 for
-dashboard sessions, Docker Compose for self-host deployment (see `docker-compose.prod.yml`
-and `docker/` for the containerized build, `README.md` for the exact commands).
+Node 24 and TypeScript for the app, plus the optional Go 1.27 gateway. The Node side is a single npm project
+(no monorepo tooling): Next.js App Router for dashboard and public API, a Node worker for BullMQ consumers,
+Prisma and Postgres, Redis for the queue, hand-written Tailwind components, NextAuth v5 for sessions, and
+Docker Compose for self-hosting (`docker-compose.prod.yml`, `docker/`, and the README for commands).
 
-**Originally scaffolded as a pnpm workspace monorepo (apps/web, apps/worker,
-packages/\*) with Turborepo — abandoned mid-build and collapsed into this single
-project.** Root cause, found by direct testing rather than assumption: pnpm's
-content-addressable store fundamentally requires filesystem symlinks for every
-dependency it links (not just workspace-local packages), and this specific Windows
-environment blocked symlink creation at the OS policy level for every tested path —
-Developer Mode, two different registry-key attempts, and an explicitly elevated
-terminal all failed to change it. A monorepo split is reasonable at a larger team/feature
-size, but it was unwarranted complexity for this MVP's actual size regardless of the
-Windows issue; the single-project layout here is the right scope for now, not just a
-workaround, and re-splitting later is straightforward if the project outgrows it.
+It began as a pnpm workspace monorepo and was collapsed into one project: pnpm needs filesystem symlinks,
+and symlink creation was blocked by policy on the development machine. A single project is also the right
+scope at this size; splitting again later is straightforward.

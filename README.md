@@ -1,9 +1,8 @@
 # Tracewell
 
-Self-hostable LLM observability, evaluation, and prompt management. An independent
-implementation informed by reverse-engineering Langfuse's open-source architecture —
-see [ARCHITECTURE.md](./ARCHITECTURE.md) for what was verified from its source, what
-Tracewell does differently and why, and a full accounting of known gaps.
+Self-hostable LLM observability, evaluation, and prompt management. See
+[ARCHITECTURE.md](./ARCHITECTURE.md) for how it fits together, the design decisions
+and why, and a full accounting of known gaps.
 
 ## Status
 
@@ -162,3 +161,7 @@ summarized here:
 - **SDK is TypeScript-only** (the Go gateway is an alternative that needs no SDK, but it only understands
   OpenAI-compatible HTTP traffic), local-source (not published to npm), and has no
   dataset-specific helper methods — dataset/run endpoints are called directly over HTTP.
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
