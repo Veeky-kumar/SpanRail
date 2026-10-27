@@ -50,7 +50,7 @@ export function LatestCall({ latest, next }: { latest: Latest | null; next: Setu
         timing={timing}
         fig="Fig 1"
         title="Your latest call"
-        hint={latest.model ?? "Measured by the gateway"}
+        hint="Measured by the gateway"
         fixedStep={6}
         caption={`Your newest call through the gateway${latest.model ? `, ${latest.model}` : ""}, in ${latest.projectName}, ${when}. The carriage rides a ruler across one block per phase of the round trip, drawn from the milliseconds the gateway measured.`}
       />
