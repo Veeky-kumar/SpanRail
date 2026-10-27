@@ -20,7 +20,7 @@ export interface GatewayTiming {
   status: number | null;
 }
 
-const LABELS: Record<TimingPhaseKey, string> = {
+export const LABELS: Record<TimingPhaseKey, string> = {
   dns: "DNS lookup",
   connect: "TCP connect",
   tls: "TLS handshake",

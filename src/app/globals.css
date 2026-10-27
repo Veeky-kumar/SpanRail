@@ -148,6 +148,14 @@ body {
   --viz-orange: #eb6834;
   --viz-status-critical: #d03b3b;
   --viz-success: #006300;
+  /* Categorical series (models). Always paired with a name, never colour alone. Order is fixed so a model keeps its colour. */
+  --viz-c1: #2a78d6;
+  --viz-c2: #eb6834;
+  --viz-c3: #0f8b7f;
+  --viz-c4: #7a56c9;
+  --viz-c5: #b08a12;
+  --viz-c6: #c03a7a;
+  --viz-other: #898781;
 }
 [data-theme="dark"] .viz-root {
   color-scheme: dark;
@@ -163,6 +171,13 @@ body {
   --viz-orange: #d95926;
   --viz-status-critical: #e66767;
   --viz-success: #0ca30c;
+  --viz-c1: #3987e5;
+  --viz-c2: #e0733f;
+  --viz-c3: #2fb5a5;
+  --viz-c4: #9b7be0;
+  --viz-c5: #d3ab2c;
+  --viz-c6: #e0629a;
+  --viz-other: #898781;
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] .viz-root {
@@ -179,6 +194,13 @@ body {
     --viz-orange: #d95926;
     --viz-status-critical: #e66767;
     --viz-success: #0ca30c;
+    --viz-c1: #3987e5;
+    --viz-c2: #e0733f;
+    --viz-c3: #2fb5a5;
+    --viz-c4: #9b7be0;
+    --viz-c5: #d3ab2c;
+    --viz-c6: #e0629a;
+    --viz-other: #898781;
   }
 }
 
