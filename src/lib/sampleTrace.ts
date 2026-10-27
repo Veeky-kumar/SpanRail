@@ -20,3 +20,12 @@ export const SAMPLE_REUSED_METADATA = {
     timingMs: { ttfb: 201, total: 308 },
   },
 };
+
+// A small sample trace for the landing page: spans on one shared time axis (milliseconds).
+export const SAMPLE_TRACE_MS = 612;
+export const SAMPLE_SPANS = [
+  { name: "agent.run", type: "span", start: 0, dur: 612, depth: 0 },
+  { name: "retrieve-context", type: "span", start: 18, dur: 96, depth: 1 },
+  { name: "chat.completions", type: "generation", start: 130, dur: 374, depth: 1 },
+  { name: "tool.search", type: "span", start: 512, dur: 84, depth: 1 },
+] as const;
