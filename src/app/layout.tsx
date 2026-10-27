@@ -11,8 +11,8 @@ const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", di
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Tracewell",
-  description: "Self-hostable LLM observability, evaluation, and prompt management",
+  title: { default: "Tracewell", template: "%s · Tracewell" },
+  description: "Self-hosted LLM tracing, evaluation and prompt management, with network timing for every call.",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
