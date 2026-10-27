@@ -7,8 +7,23 @@ import type { AuthFormState } from "../login/actions";
 
 const initialState: AuthFormState = {};
 
-export function SignupForm() {
+export function SignupForm({ closedMessage }: { closedMessage?: string }) {
   const [state, formAction, pending] = useActionState(signupAction, initialState);
+
+  if (closedMessage) {
+    return (
+      <div>
+        <h1 className="text-2xl font-semibold tracking-[-0.02em]">Sign-ups are closed</h1>
+        <p className="mt-1 text-sm text-muted">{closedMessage}</p>
+        <p className="mt-6 text-sm text-muted">
+          Already have an account?{" "}
+          <Link href="/login" className="font-medium text-ink underline underline-offset-4 hover:text-accent">
+            Sign in
+          </Link>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction}>
@@ -62,7 +77,7 @@ export function SignupForm() {
       </button>
 
       <p className="mt-4 text-xs text-muted">
-        We note which link brought you here and your country, never your IP address.
+        We note which link brought you here and your country; we never store your IP address.
       </p>
 
       <p className="mt-6 text-sm text-muted">

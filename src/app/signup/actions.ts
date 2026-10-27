@@ -3,12 +3,25 @@
 import { cookies, headers } from "next/headers";
 import { AuthError } from "next-auth";
 import { countryFromHeaders, parseSourceCookie, SOURCE_COOKIE } from "@/lib/attribution";
+import { clientKey, createRateLimiter } from "@/lib/rateLimit";
+import { SIGNUPS_CLOSED_MESSAGE, signupsOpen } from "@/lib/signups";
 import { prisma } from "@/server/db";
 import { hashPassword } from "@/server/password";
 import { signIn } from "@/server/auth";
 import type { AuthFormState } from "../login/actions";
 
+// 5 sign-ups an hour per address: enough for a shared office, too few for a bot filling the table.
+const signupLimiter = createRateLimiter(5, 60 * 60 * 1000);
+
 export async function signupAction(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const requestHeaders = await headers();
+  if (!signupsOpen()) return { error: SIGNUPS_CLOSED_MESSAGE };
+
+  const limited = signupLimiter.hit(clientKey((n) => requestHeaders.get(n)));
+  if (!limited.allowed) {
+    return { error: `Too many sign-ups from this address. Try again in ${Math.ceil(limited.retryAfterSec / 60)} minutes.` };
+  }
+
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const name = String(formData.get("name") ?? "").trim() || undefined;
@@ -23,9 +36,9 @@ export async function signupAction(_prevState: AuthFormState, formData: FormData
   }
 
   // Where the visitor came from: the first-party cookie set on their first page, and a coarse country from the edge
-  // headers. Best effort: an absent or tampered cookie just records nothing. No IP address is read or stored.
+  // headers. Best effort: an absent or tampered cookie just records nothing. The IP address is only an in-memory
+  // rate-limit key above and is never stored.
   const source = parseSourceCookie((await cookies()).get(SOURCE_COOKIE)?.value);
-  const requestHeaders = await headers();
   const country = countryFromHeaders((name) => requestHeaders.get(name));
 
   await prisma.user.create({

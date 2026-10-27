@@ -1,0 +1,34 @@
+name: web
+
+# Type-checks and tests the Next.js app. The gateway and the Python SDK have their own workflows.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["gateway/**", "sdk-python/**", "**/*.md"]
+  pull_request:
+    paths-ignore: ["gateway/**", "sdk-python/**", "**/*.md"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Tests
+        run: npm test
