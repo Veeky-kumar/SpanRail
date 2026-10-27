@@ -40,6 +40,27 @@ Sign in at `http://localhost:3000/login` with the seeded demo account.
 
 ## Sending a trace (SDK)
 
+**Python** ([`spanrail` on PyPI](https://pypi.org/project/spanrail/), no dependencies, Python 3.9+):
+
+```bash
+pip install spanrail
+```
+
+```python
+from spanrail import Spanrail
+
+sr = Spanrail("pk-...", "sk-...", base_url="http://localhost:3000")
+
+trace = sr.trace("support-chat", user_id="u_123")
+with trace.generation("answer", model="gpt-4o-mini", input="Where is my order?") as gen:
+    gen.end(output="It shipped yesterday.", usage={"input": 12, "output": 7})
+```
+
+Events are sent from a background thread and flushed at exit; the SDK never raises into your app. See
+[sdk-python/README.md](./sdk-python/README.md).
+
+**TypeScript** (not yet published to npm; import the local source):
+
 ```ts
 import { Spanrail } from "./sdk"; // not yet published — import the local source
 
@@ -123,7 +144,21 @@ your app --> spanrail-gateway (Go) --> LLM provider
                    +--(async, batched)--> Spanrail  POST /api/public/ingestion
 ```
 
-It needs **Go 1.27.3+** to build natively (the Docker image builds it for you). Quick start, from the repo
+A prebuilt image (linux/amd64 and linux/arm64, about 5 MB) is published to GitHub Container Registry:
+
+```bash
+docker run -p 127.0.0.1:8080:8080 \
+  -e UPSTREAM_URL=https://api.openai.com \
+  -e SPANRAIL_BASE_URL=http://host.docker.internal:3000 \
+  -e SPANRAIL_PUBLIC_KEY=pk-... -e SPANRAIL_SECRET_KEY=sk-... \
+  ghcr.io/veeky-kumar/spanrail-gateway:latest
+```
+
+`host.docker.internal` reaches a Spanrail running on your machine from Docker Desktop; on Linux add
+`--add-host=host.docker.internal:host-gateway`, or use your server's address. The gateway does not authenticate its
+callers, so keep it bound to localhost or a private network.
+
+To build it yourself you need **Go 1.27.3+** (the Docker image builds it for you). From the repo
 root, with the key pair that `npm run db:seed` printed:
 
 ```bash
@@ -158,9 +193,9 @@ summarized here:
   `examples/*.ts` scripts and ad hoc checks, not a repeatable CI-run E2E suite. The Go gateway is the exception:
   it has a scripted E2E (`gateway/scripts/e2e.sh`) against the full stack, run by hand, and its unit tests,
   vet and vulnerability check run in CI.
-- **SDK is TypeScript-only** (the Go gateway is an alternative that needs no SDK, but it only understands
-  OpenAI-compatible HTTP traffic), local-source (not published to npm), and has no
-  dataset-specific helper methods — dataset/run endpoints are called directly over HTTP.
+- **SDKs:** Python (`spanrail` on PyPI) and TypeScript (local source, not published to npm). Neither has
+  dataset-specific helper methods — dataset/run endpoints are called directly over HTTP. The Go gateway is an
+  alternative that needs no SDK, but it only understands OpenAI-compatible HTTP traffic.
 
 ## License
 

@@ -74,6 +74,21 @@ const RUN_IT = `cp .env.production.example .env.production
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \\
   --env-file .env.production up -d --build`;
 
+const GATEWAY_RUN = `docker run -p 127.0.0.1:8080:8080 \\
+  -e UPSTREAM_URL=https://api.openai.com \\
+  -e SPANRAIL_BASE_URL=http://host.docker.internal:3000 \\
+  -e SPANRAIL_PUBLIC_KEY=pk-... -e SPANRAIL_SECRET_KEY=sk-... \\
+  ghcr.io/veeky-kumar/spanrail-gateway:latest`;
+
+const PY_SDK = `pip install spanrail
+
+from spanrail import Spanrail
+
+sr = Spanrail("pk-...", "sk-...", base_url="http://localhost:3000")
+trace = sr.trace("support-chat")
+with trace.generation("answer", model="gpt-4o-mini") as gen:
+    gen.end(output="...", usage={"input": 12, "output": 7})`;
+
 const BEFORE = `from openai import OpenAI
 
 client = OpenAI(api_key="sk-your-provider-key")`;
@@ -280,6 +295,14 @@ export function Landing() {
               <pre className="overflow-x-auto rounded-data border border-rule bg-canvas p-4 font-mono text-xs leading-relaxed">
                 {RUN_IT}
               </pre>
+            </div>
+            <p className="mt-12 max-w-2xl text-sm text-muted">
+              Then send your first call. Run the prebuilt gateway image and point your client at it, or install the
+              Python SDK and send traces directly. The image is published for amd64 and arm64.
+            </p>
+            <div className="mt-6 grid gap-5 md:grid-cols-2">
+              <Code label="Send calls through the gateway">{GATEWAY_RUN}</Code>
+              <Code label="Or send traces from Python">{PY_SDK}</Code>
             </div>
           </section>
         </main>

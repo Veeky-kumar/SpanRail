@@ -22,6 +22,16 @@ for a walkthrough of the code.
 You need a running Spanrail (web + worker) and a project key pair (`npm run db:seed` prints one).
 
 ```bash
+# prebuilt image (linux/amd64 and linux/arm64): no clone or build needed
+docker run -p 127.0.0.1:8080:8080 \
+  -e UPSTREAM_URL=https://api.openai.com \
+  -e SPANRAIL_BASE_URL=http://host.docker.internal:3000 \
+  -e SPANRAIL_PUBLIC_KEY=pk-... -e SPANRAIL_SECRET_KEY=sk-... \
+  ghcr.io/veeky-kumar/spanrail-gateway:latest
+# Docker Desktop resolves host.docker.internal; on Linux add --add-host=host.docker.internal:host-gateway.
+# The gateway does not authenticate its callers, so keep the port bound to localhost or a private network.
+# Pin a version (for example :0.1.0) in anything you depend on.
+
 # native
 cd gateway
 UPSTREAM_URL=https://api.openai.com \
