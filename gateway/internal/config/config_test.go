@@ -7,10 +7,10 @@ import (
 	"time"
 )
 
-// env serves m as the environment. Tests that say nothing about Tracewell get reporting
+// env serves m as the environment. Tests that say nothing about Spanrail get reporting
 // switched off, so they do not each need to supply keys.
 func env(m map[string]string) func(string) string {
-	_, hasKey := m["TRACEWELL_PUBLIC_KEY"]
+	_, hasKey := m["SPANRAIL_PUBLIC_KEY"]
 	_, hasFlag := m["REPORT_ENABLED"]
 	return func(k string) string {
 		if k == "REPORT_ENABLED" && !hasKey && !hasFlag {
@@ -67,7 +67,7 @@ func TestLoadCaptureSettings(t *testing.T) {
 }
 
 func TestLoadReporting(t *testing.T) {
-	keys := map[string]string{"UPSTREAM_URL": "http://x", "TRACEWELL_PUBLIC_KEY": "pk-1", "TRACEWELL_SECRET_KEY": "sk-very-secret"}
+	keys := map[string]string{"UPSTREAM_URL": "http://x", "SPANRAIL_PUBLIC_KEY": "pk-1", "SPANRAIL_SECRET_KEY": "sk-very-secret"}
 	with := func(kv ...string) map[string]string {
 		m := map[string]string{}
 		for k, v := range keys {
@@ -83,7 +83,7 @@ func TestLoadReporting(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !c.ReportEnabled || c.TracewellURL.String() != "http://localhost:3000" || c.PublicKey != "pk-1" ||
+	if !c.ReportEnabled || c.SpanrailURL.String() != "http://localhost:3000" || c.PublicKey != "pk-1" ||
 		c.BatchSize != 50 || c.FlushInterval != 2*time.Second || c.QueueSize != 1000 ||
 		c.ReportWorkers != 2 || c.ReportMaxAttempts != 5 || c.ReportTimeout != 10*time.Second {
 		t.Errorf("defaults wrong: %+v", c)
@@ -97,12 +97,12 @@ func TestLoadReporting(t *testing.T) {
 		}
 	}
 
-	c, err = Load(env(with("TRACEWELL_BASE_URL", "https://tw.example/", "BATCH_SIZE", "10", "FLUSH_INTERVAL", "500ms",
+	c, err = Load(env(with("SPANRAIL_BASE_URL", "https://tw.example/", "BATCH_SIZE", "10", "FLUSH_INTERVAL", "500ms",
 		"QUEUE_SIZE", "5", "REPORT_WORKERS", "4", "REPORT_MAX_ATTEMPTS", "3", "REPORT_TIMEOUT", "1s")))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.TracewellURL.Host != "tw.example" || c.BatchSize != 10 || c.FlushInterval != 500*time.Millisecond ||
+	if c.SpanrailURL.Host != "tw.example" || c.BatchSize != 10 || c.FlushInterval != 500*time.Millisecond ||
 		c.QueueSize != 5 || c.ReportWorkers != 4 || c.ReportMaxAttempts != 3 || c.ReportTimeout != time.Second {
 		t.Errorf("overrides not applied: %+v", c)
 	}
@@ -117,9 +117,9 @@ func TestLoadReporting(t *testing.T) {
 		kv   []string
 		want string
 	}{
-		"missing public key": {[]string{"TRACEWELL_PUBLIC_KEY", ""}, "TRACEWELL_PUBLIC_KEY is required"},
-		"missing secret key": {[]string{"TRACEWELL_SECRET_KEY", ""}, "TRACEWELL_SECRET_KEY is required"},
-		"bad base url":       {[]string{"TRACEWELL_BASE_URL", "tracewell"}, "TRACEWELL_BASE_URL"},
+		"missing public key": {[]string{"SPANRAIL_PUBLIC_KEY", ""}, "SPANRAIL_PUBLIC_KEY is required"},
+		"missing secret key": {[]string{"SPANRAIL_SECRET_KEY", ""}, "SPANRAIL_SECRET_KEY is required"},
+		"bad base url":       {[]string{"SPANRAIL_BASE_URL", "spanrail"}, "SPANRAIL_BASE_URL"},
 		"batch too big":      {[]string{"BATCH_SIZE", "501"}, "BATCH_SIZE"},
 		"batch zero":         {[]string{"BATCH_SIZE", "0"}, "BATCH_SIZE"},
 		"queue zero":         {[]string{"QUEUE_SIZE", "0"}, "QUEUE_SIZE"},
@@ -273,7 +273,7 @@ func TestLoadOpsAddrAndSizeCaps(t *testing.T) {
 			t.Errorf("%v: err = %v, want a size-cap error naming %s", bad, err, bad[0])
 		}
 	}
-	keys := map[string]string{"TRACEWELL_PUBLIC_KEY": "p", "TRACEWELL_SECRET_KEY": "s", "UPSTREAM_URL": "http://x", "QUEUE_SIZE": "100001"}
+	keys := map[string]string{"SPANRAIL_PUBLIC_KEY": "p", "SPANRAIL_SECRET_KEY": "s", "UPSTREAM_URL": "http://x", "QUEUE_SIZE": "100001"}
 	if _, err := Load(env(keys)); err == nil || !strings.Contains(err.Error(), "QUEUE_SIZE") {
 		t.Errorf("QUEUE_SIZE above 100000 should fail, got %v", err)
 	}

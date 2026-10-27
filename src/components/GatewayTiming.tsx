@@ -19,7 +19,7 @@ function fmt(ms: number): string {
 }
 
 /**
- * Where the time went for a call that passed through the Tracewell gateway: the phases of
+ * Where the time went for a call that passed through the Spanrail gateway: the phases of
  * the round trip laid end to end on a millisecond ruler. Renders nothing for observations
  * that carry no gateway timing, so existing traces are unaffected.
  */

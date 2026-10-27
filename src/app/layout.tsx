@@ -11,7 +11,7 @@ const sans = Schibsted_Grotesk({ subsets: ["latin"], variable: "--font-sans", di
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Tracewell", template: "%s · Tracewell" },
+  title: { default: "Spanrail", template: "%s · Spanrail" },
   description: "Self-hosted LLM tracing, evaluation and prompt management, with network timing for every call.",
 };
 

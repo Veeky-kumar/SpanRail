@@ -155,7 +155,7 @@ subtract:
 
 ### Shape
 ```
-request goroutine --Enqueue--> [ bounded chan of Observation ] --> worker goroutines --> batch --> HTTPSender --> Tracewell
+request goroutine --Enqueue--> [ bounded chan of Observation ] --> worker goroutines --> batch --> HTTPSender --> Spanrail
    (never blocks)                    (QUEUE_SIZE)                 (size OR interval)    (retry + backoff)
 ```
 - **`Enqueue` uses `select` with a `default`.** If the channel is full it takes the default branch,
@@ -164,7 +164,7 @@ request goroutine --Enqueue--> [ bounded chan of Observation ] --> worker gorout
   A batch flushes when it reaches `BATCH_SIZE` events or when the ticker fires, whichever is first.
 - **Retry is the reporter's job, classification is the sender's.** `Sender.Send` returns a `Result`:
   accepted, rejected for good (4xx, auth), or retryable (network error, 429, 5xx). Only the
-  retryable events are sent again. Tracewell's ingestion is idempotent per event id, so a retry
+  retryable events are sent again. Spanrail's ingestion is idempotent per event id, so a retry
   can never create duplicates.
 - **Backoff with full jitter:** the ceiling doubles per attempt up to a cap, and the actual wait is a
   random point below it. Without jitter, every gateway retries at the same instant after an outage.
@@ -174,7 +174,7 @@ request goroutine --Enqueue--> [ bounded chan of Observation ] --> worker gorout
   requests (they may still enqueue), *then* `reporter.Close`, which closes the channel. Workers
   drain what is left, flush, and exit. Closing the channel before in-flight requests finish would
   make a late `Enqueue` send on a closed channel and panic, hence the `RWMutex` + `closed` flag.
-- **Close has a deadline.** If Tracewell hangs, `Close` cancels the shared context so in-flight HTTP
+- **Close has a deadline.** If Spanrail hangs, `Close` cancels the shared context so in-flight HTTP
   calls and backoff sleeps abort, and returns an error instead of blocking shutdown forever.
 
 ### What gets sent (see `report/events.go`)
@@ -200,13 +200,13 @@ is never sent (no price table, so no invented cost).
 ## Milestone 5: trace linking and the end-to-end check
 
 ### Trace linking
-- A caller sends `X-Tracewell-Trace-Id` (and optionally `X-Tracewell-Parent-Observation-Id`). The
+- A caller sends `X-Spanrail-Trace-Id` (and optionally `X-Spanrail-Parent-Observation-Id`). The
   generation then attaches to that trace instead of creating a new root. Without the header the
-  gateway sends `trace-create` first (in Tracewell a trace is its own root observation: id == traceId).
+  gateway sends `trace-create` first (in Spanrail a trace is its own root observation: id == traceId).
 - The ids end up in JSON and in database keys, so they must match `^[A-Za-z0-9_.:-]{1,128}$`.
   An invalid value is **ignored, not rejected**: the LLM call must never fail because of our
   bookkeeping. A parent without a valid trace is dropped too.
-- `X-Tracewell-*` headers are **removed before forwarding**, so the provider never sees them.
+- `X-Spanrail-*` headers are **removed before forwarding**, so the provider never sees them.
 
 ### What the review taught (and the bug that was mine)
 An independent review of milestones 1-4 found real problems, now fixed with tests:
@@ -224,7 +224,7 @@ Lesson: assert that an edit applied, and debug from evidence (goroutine dump) ra
    we need to observe the call but must not change that behaviour.
 3. *Why not `ServeMux`?* It canonicalises paths and redirects, so the upstream would not receive what the client sent.
 4. *Why leave the read deadline expired after a failed peek?* Otherwise net/http tries to drain the rest of the promised body from a silent client with no time limit.
-5. *What does the E2E script prove that unit tests cannot?* That the real Tracewell schema, worker and
+5. *What does the E2E script prove that unit tests cannot?* That the real Spanrail schema, worker and
    Postgres accept what we send, and that the pieces agree on ids and field names.
 
 ### Pieces to type yourself

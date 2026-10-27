@@ -8,7 +8,7 @@ import (
 )
 
 // Usage holds token counts keyed "input", "output" and "total", matching the usageDetails
-// shape Tracewell ingests. A key is present only if the provider reported it (or, for
+// shape Spanrail ingests. A key is present only if the provider reported it (or, for
 // total, if both input and output were reported). A nil Usage means unknown.
 type Usage map[string]int64
 

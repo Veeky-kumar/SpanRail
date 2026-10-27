@@ -11,8 +11,8 @@ in the "What I can claim" section at the bottom.
 |---|---|
 | Machine | AMD Ryzen 7 250 (8 cores / 16 threads), 31.3 GB RAM, Windows 11 Home 10.0.26200, "Balanced" power plan |
 | Toolchain | Go **1.27.2** windows/amd64 for the final tests, E2E and benchmark (development started on 1.27.0, see "Problems found"), Docker Desktop (engine 29.4.1). The E2E, benchmark and test counts below were all taken on commit `e6ee1a4`; the container tests on its parent `2bcd531` (the later commit does not touch the Dockerfile or compose) |
-| Background load | an unrelated, idle 4-container Docker stack (the author's own Tracewell deployment) was running during the benchmark |
-| Topology | everything on one machine over loopback: load generator, gateway, fake upstream and fake Tracewell compete for the same CPUs |
+| Background load | an unrelated, idle 4-container Docker stack (the author's own Spanrail deployment) was running during the benchmark |
+| Topology | everything on one machine over loopback: load generator, gateway, fake upstream and fake Spanrail compete for the same CPUs |
 | Load generator | `cmd/bench`: closed loop, keep-alive client, 500 unmeasured warm-up requests, then `n` measured requests |
 | Repetitions | 3 runs per configuration, every run committed unaltered. Tables below show the **median of the 3** |
 | Clock | **Go's clock on this machine steps in ~0.54 ms** (199,998 of 200,000 consecutive `time.Now()` reads were identical). Sub-millisecond percentiles here are quantised; this is why a second pass uses a 20 ms upstream |
@@ -36,7 +36,7 @@ in the "What I can claim" section at the bottom.
 ## Overhead the gateway adds
 
 Same requests, same machine, sent (a) directly to a fake OpenAI-compatible upstream, (b) through the
-gateway with reporting off, (c) through the gateway reporting to a fast fake Tracewell.
+gateway with reporting off, (c) through the gateway reporting to a fast fake Spanrail.
 **0 errors in all 36 runs.**
 
 ### With a 20 ms upstream (overhead is far above the clock resolution)
@@ -79,28 +79,28 @@ hypothesis is **refuted**, and I did not find the cause. Consequence: the "no re
 
 ## Event throughput
 
-* Gateway to a fast fake Tracewell, c=32, 0 ms upstream: **~13k calls/s sustained, which is ~40k events/s**
+* Gateway to a fast fake Spanrail, c=32, 0 ms upstream: **~13k calls/s sustained, which is ~40k events/s**
   (3 events per call) delivered in batches. Over the whole benchmark 369,000 events were sent for 123,000
   calls: **0 dropped, 0 flush failures**, and the sink received exactly 123,000 of each event type.
   (This used `QUEUE_SIZE=100000`; the default is 1000.)
-* **Real Tracewell is the bottleneck, and the gateway behaved as designed.** 3,000 calls at c=16 against the
-  real Tracewell (Next.js dev server + worker + Postgres + Redis, default `QUEUE_SIZE=1000`), measured twice
+* **Real Spanrail is the bottleneck, and the gateway behaved as designed.** 3,000 calls at c=16 against the
+  real Spanrail (Next.js dev server + worker + Postgres + Redis, default `QUEUE_SIZE=1000`), measured twice
   (before and after the review fixes) with identical results:
-  * 0 client-visible errors; call latency stayed at p50 1.83 ms / p95 3.97 ms (not slowed by Tracewell's lag).
+  * 0 client-visible errors; call latency stayed at p50 1.83 ms / p95 3.97 ms (not slowed by Spanrail's lag).
   * 1,034 calls were delivered and **1,966 were dropped and counted** (`report_dropped_total=1966`).
-  * Tracewell stored exactly **1,034** generations: delivered + dropped = 3,000, so accounting is exact.
-  * Takeaway: with default settings the real Tracewell sustains far fewer events per second than the
-    gateway can produce; raise `QUEUE_SIZE` for bursts, but a sustained rate above Tracewell's ingest
+  * Spanrail stored exactly **1,034** generations: delivered + dropped = 3,000, so accounting is exact.
+  * Takeaway: with default settings the real Spanrail sustains far fewer events per second than the
+    gateway can produce; raise `QUEUE_SIZE` for bursts, but a sustained rate above Spanrail's ingest
     capacity will drop events. (The dev server is not a tuned deployment.)
 
-## End-to-end against a real Tracewell stack
+## End-to-end against a real Spanrail stack
 
 `scripts/e2e.sh` against Postgres + Redis (Docker), the Next.js app and the ingestion worker, using a fake
 OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on the final build**
 (see [docs/e2e-evidence.txt](./docs/e2e-evidence.txt)):
 
 * 6 calls became 6 stored `GENERATION` rows, correctly linked under a new root trace.
-* One call sent with `X-Tracewell-Trace-Id` attached to an existing trace (no new root created).
+* One call sent with `X-Spanrail-Trace-Id` attached to an existing trace (no new root created).
 * Token usage stored for a normal call (input 11 / output 7 / total 18) and for a stream that asked for usage;
   **unknown (null) for a stream that did not**: not invented.
 * Upstream HTTP 500 stored as level `ERROR` with a status message.
@@ -141,7 +141,7 @@ OpenAI-compatible upstream (no paid API key). **15 of 15 assertions passed on th
    `PEEK_TIMEOUT` killed slow uploads and nothing guarded the body after the peek; a stalled client got an empty
    200 (a read-deadline cancels the request context, hiding the cause); the caller-chosen path was copied
    unbounded into every event; the prod compose overlay auto-started a gateway that crash-loops without keys and
-   it was published on all interfaces; 408/425 from Tracewell were treated as permanent; header redaction was a
+   it was published on all interfaces; 408/425 from Spanrail were treated as permanent; header redaction was a
    plain list; size caps were up to 1 GiB; client IPs were forwarded to the provider; WebSocket upgrades were
    recorded as status 499; the ops endpoints shared the public port (now optional `OPS_ADDR`).
 5. A third code review (of the finished branch) found, and I fixed: the 60 s default for waiting on response

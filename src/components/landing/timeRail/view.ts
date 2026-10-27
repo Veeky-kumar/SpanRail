@@ -61,7 +61,7 @@ export const DIAL_H = 9;
 export const DIAL_TOP = DIAL_Z + DIAL_H;
 export const DIAL_COUNT = 20;
 
-// The logger box (Tracewell), at the back right.
+// The logger box (Spanrail), at the back right.
 export const LOGGER: Plan = { x: 180, y: -64, w: 38, d: 36, r: 3 };
 export const LOGGER_H = 24;
 export const LAMP: Flat = [191, -46];

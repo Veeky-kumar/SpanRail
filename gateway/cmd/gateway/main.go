@@ -1,4 +1,4 @@
-// Command gateway is a reverse proxy for LLM provider APIs that reports each call to Tracewell.
+// Command gateway is a reverse proxy for LLM provider APIs that reports each call to Spanrail.
 package main
 
 import (
@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/config"
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
-	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
-	"github.com/veeky-ai/tracewell-gateway/internal/report"
-	"github.com/veeky-ai/tracewell-gateway/internal/server"
+	"github.com/veeky-ai/spanrail-gateway/internal/config"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/proxy"
+	"github.com/veeky-ai/spanrail-gateway/internal/report"
+	"github.com/veeky-ai/spanrail-gateway/internal/server"
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 
 	var reporter *report.Reporter
 	if cfg.ReportEnabled {
-		sender := report.NewHTTPSender(cfg.TracewellURL, cfg.PublicKey, string(cfg.SecretKey), cfg.ReportTimeout)
+		sender := report.NewHTTPSender(cfg.SpanrailURL, cfg.PublicKey, string(cfg.SecretKey), cfg.ReportTimeout)
 		reporter = report.New(report.Config{
 			QueueSize:     cfg.QueueSize,
 			BatchSize:     cfg.BatchSize,
@@ -65,7 +65,7 @@ func main() {
 		}, sender, m)
 		m.SetQueueDepth(reporter.QueueDepth)
 		opts.Sink = reporter
-		log.Printf("reporting to %s", cfg.TracewellURL.Redacted())
+		log.Printf("reporting to %s", cfg.SpanrailURL.Redacted())
 	} else {
 		log.Print("reporting disabled: running as a plain proxy")
 	}

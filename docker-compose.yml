@@ -3,6 +3,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
+      # The database, user and volume keep their original name "tracewell": renaming them would
+      # point an existing install at an empty database. They are internal and never shown.
       POSTGRES_USER: tracewell
       POSTGRES_PASSWORD: tracewell
       POSTGRES_DB: tracewell
@@ -29,7 +31,7 @@ services:
 
   # Optional LLM gateway (see gateway/README.md). Not started by default:
   #   docker compose --profile gateway up -d --build gateway
-  # Outside of the production overlay it assumes Tracewell is running on the host
+  # Outside of the production overlay it assumes Spanrail is running on the host
   # (npm run dev), hence host.docker.internal.
   gateway:
     profiles: ["gateway"]
@@ -38,9 +40,9 @@ services:
     restart: unless-stopped
     environment:
       UPSTREAM_URL: ${GATEWAY_UPSTREAM_URL:-https://api.openai.com}
-      TRACEWELL_BASE_URL: ${GATEWAY_TRACEWELL_URL:-http://host.docker.internal:3000}
-      TRACEWELL_PUBLIC_KEY: ${TRACEWELL_PUBLIC_KEY:-}
-      TRACEWELL_SECRET_KEY: ${TRACEWELL_SECRET_KEY:-}
+      SPANRAIL_BASE_URL: ${GATEWAY_SPANRAIL_URL:-http://host.docker.internal:3000}
+      SPANRAIL_PUBLIC_KEY: ${SPANRAIL_PUBLIC_KEY:-}
+      SPANRAIL_SECRET_KEY: ${SPANRAIL_SECRET_KEY:-}
       # Keep serving (with /readyz = 503) briefly after SIGTERM so balancers notice.
       DRAIN_DELAY: 3s
     extra_hosts:

@@ -1,4 +1,4 @@
-// The "life of a call" explainer: one LLM call through the Tracewell gateway, stage by stage.
+// The "life of a call" explainer: one LLM call through the Spanrail gateway, stage by stage.
 // Pure data and rules so the order, the skipped stages and the sums are unit-tested; the React
 // component only draws what this returns. Every statement below describes what the gateway
 // really does (gateway/README.md, gateway/internal/nettrace, gateway/internal/report).
@@ -12,7 +12,7 @@ export interface Stage {
   title: string;
   /** What happens at this point of the call. */
   happens: string;
-  /** What Tracewell records here. */
+  /** What Spanrail records here. */
   records: string;
   /** What an unusually large value usually points to. */
   slow: string;
@@ -62,7 +62,7 @@ export const STAGES: Stage[] = [
   {
     key: "wait",
     title: "The provider thinks",
-    happens: "The request is with the provider. Time to first byte is measured from the start of the round trip, so Tracewell subtracts the setup above to isolate this wait.",
+    happens: "The request is with the provider. Time to first byte is measured from the start of the round trip, so Spanrail subtracts the setup above to isolate this wait.",
     records: "Time to first byte, and from it the provider's own wait.",
     slow: "The provider is busy, the model is slow, or the prompt is large. This is usually the biggest segment.",
     phase: "wait",
@@ -79,10 +79,10 @@ export const STAGES: Stage[] = [
   },
   {
     key: "report",
-    title: "Reported to Tracewell",
-    happens: "The gateway queues the call and sends batches to Tracewell in the background. It never makes your call wait, and if the queue is full the event is dropped and counted.",
+    title: "Reported to Spanrail",
+    happens: "The gateway queues the call and sends batches to Spanrail in the background. It never makes your call wait, and if the queue is full the event is dropped and counted.",
     records: "A trace with one generation: model, status, usage if known, and the time budget.",
-    slow: "Not on the request path: a slow Tracewell never slows your calls.",
+    slow: "Not on the request path: a slow Spanrail never slows your calls.",
     phase: null,
     skippedWhenReused: false,
   },

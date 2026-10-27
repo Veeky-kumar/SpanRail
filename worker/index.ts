@@ -21,7 +21,7 @@ worker.on("failed", (job, err) => {
   console.error(`[ingestion] failed ${job?.id}:`, err.message);
 });
 
-console.log("Tracewell worker started, listening on queue:", INGESTION_QUEUE_NAME);
+console.log("Spanrail worker started, listening on queue:", INGESTION_QUEUE_NAME);
 
 process.on("SIGTERM", async () => {
   await worker.close();

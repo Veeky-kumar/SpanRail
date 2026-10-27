@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
-	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/nettrace"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
 )
 
 func dur(ms float64) *time.Duration {

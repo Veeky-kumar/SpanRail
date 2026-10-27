@@ -1,7 +1,7 @@
-# Plan: tracewell-gateway (Go reverse proxy -> Tracewell generations)
+# Plan: spanrail-gateway (Go reverse proxy -> Spanrail generations)
 
 ## Context
-Add `gateway/` (own go.mod) to Tracewell: a reverse proxy in front of an OpenAI-compatible API that
+Add `gateway/` (own go.mod) to Spanrail: a reverse proxy in front of an OpenAI-compatible API that
 reports each call to `POST /api/public/ingestion` as a generation, with DNS/TCP/TLS/TTFB timings.
 Portfolio piece for a network-ops team; everything must be tested and explainable.
 
@@ -38,7 +38,7 @@ Portfolio piece for a network-ops team; everything must be tested and explainabl
      "timingMs":{"dns":3.1,"connect":8.4,"tls":21.7,"ttfb":140.2,"total":180.5}}}}}
 ]}
 ```
-With `X-Tracewell-Trace-Id` (+ optional `X-Tracewell-Parent-Observation-Id`): skip `trace-create`, use that traceId and parent.
+With `X-Spanrail-Trace-Id` (+ optional `X-Spanrail-Parent-Observation-Id`): skip `trace-create`, use that traceId and parent.
 Status >=500 / transport error -> `level:"ERROR"` + `statusMessage`. Usage unknown -> `usageDetails` omitted.
 Input/output bodies only if body capture enabled (byte-capped).
 
@@ -60,10 +60,10 @@ Key decisions:
 - Response passes through a tee writer that never buffers the stream; SSE usage is taken only from the final `data:` chunk if the provider sent one (OpenAI sends usage in streams only when the client sets `stream_options.include_usage`; gateway will NOT rewrite requests, so otherwise usage = unknown. Documented gap.)
 - httptrace hooks: DNSStart/Done, ConnectStart/Done, TLSHandshakeStart/Done, GotFirstResponseByte. Reused (keep-alive) connections legitimately report 0 for dns/connect/tls -> recorded as `reused:true`, not faked.
 - Reporter never blocks the request path (non-blocking send, default case drops + increments counter). Retry on network error/5xx/429 with exponential backoff + full jitter, cap attempts; 4xx per-event errors logged, not retried. Shutdown: stop accepting, drain queue, final flush bounded by timeout.
-- SSRF: upstream URL is fixed config only (never taken from request); validate scheme http/https at startup. Strip hop-by-hop and `X-Tracewell-*` headers before forwarding; validate trace-id header format (length/charset) to prevent injection. Authorization never logged/reported; request/response bodies off by default.
+- SSRF: upstream URL is fixed config only (never taken from request); validate scheme http/https at startup. Strip hop-by-hop and `X-Spanrail-*` headers before forwarding; validate trace-id header format (length/charset) to prevent injection. Authorization never logged/reported; request/response bodies off by default.
 - Deps: stdlib + `github.com/prometheus/client_golang` only (your pre-approved one).
 
-## Milestones (commit after each, on branch `feat/go-gateway` in a git worktree, e.g. `D:\Projects\tracewell-gateway-wt`)
+## Milestones (commit after each, on branch `feat/go-gateway` in a git worktree, e.g. `D:\Projects\spanrail-gateway-wt`)
 1. Scaffold, config, /healthz, plain reverse proxy + tests.
 2. Capture, usage parsing, SSE passthrough + tests (flush ordering test with slow chunked upstream).
 3. httptrace timings + Prometheus metrics.
@@ -81,4 +81,4 @@ E2E with output shown; benchmark p50/p95 proxy-vs-direct against fake upstream w
 ## Needs your decision / action before coding
 1. Install Go (`winget install GoLang.Go`) — I cannot proceed otherwise.
 2. Approve: `prometheus/client_golang` dependency; creating `.github/workflows/gateway.yml` (none exists today); worktree path.
-3. Scope default I'm assuming: OpenAI-compatible APIs (chat/completions, completions, embeddings), Tracewell keys supplied via env (one project per gateway instance).
+3. Scope default I'm assuming: OpenAI-compatible APIs (chat/completions, completions, embeddings), Spanrail keys supplied via env (one project per gateway instance).

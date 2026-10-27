@@ -4,7 +4,7 @@ import { doneCount, nextStepOf, type SetupStep } from "@/lib/setupProgress";
 import { recentChanges } from "@/lib/changelog";
 import type { WorkspaceSummary } from "@/server/home";
 
-const REPO = "https://github.com/Veeky-kumar/tracewell";
+const REPO = "https://github.com/Veeky-kumar/spanrail";
 
 const GUIDES = [
   { label: "Quick start (local)", href: `${REPO}#quick-start-local-development` },

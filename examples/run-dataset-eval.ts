@@ -4,7 +4,7 @@
 // always reporting success), then link each run item and let the API's
 // `exact_match` scorer write a Score automatically. The SDK has no dataset-specific
 // helpers yet (noted as a gap), so this talks to the REST endpoints directly.
-import { Tracewell } from "../sdk/index";
+import { Spanrail } from "../sdk/index";
 
 const BASE_URL = "http://localhost:3000";
 
@@ -22,13 +22,13 @@ async function api(path: string, publicKey: string, secretKey: string, body?: un
 }
 
 async function main() {
-  const publicKey = process.env.TRACEWELL_PUBLIC_KEY;
-  const secretKey = process.env.TRACEWELL_SECRET_KEY;
+  const publicKey = process.env.SPANRAIL_PUBLIC_KEY;
+  const secretKey = process.env.SPANRAIL_SECRET_KEY;
   if (!publicKey || !secretKey) {
-    throw new Error("Set TRACEWELL_PUBLIC_KEY and TRACEWELL_SECRET_KEY (printed by `npm run db:seed`)");
+    throw new Error("Set SPANRAIL_PUBLIC_KEY and SPANRAIL_SECRET_KEY (printed by `npm run db:seed`)");
   }
 
-  const tracewell = new Tracewell({ publicKey, secretKey, baseUrl: BASE_URL });
+  const spanrail = new Spanrail({ publicKey, secretKey, baseUrl: BASE_URL });
 
   const dataset = await api("/api/public/datasets", publicKey, secretKey, {
     name: `geo-qa-${Date.now()}`,
@@ -57,12 +57,12 @@ async function main() {
   };
 
   for (const item of items) {
-    const trace = tracewell.trace({ name: "geo-qa-agent", input: item.input });
+    const trace = spanrail.trace({ name: "geo-qa-agent", input: item.input });
     const generation = trace.generation({ name: "llm:answer", model: "demo-model", input: item.input });
     const output = answers[item.input as string];
     generation.end({ output });
     trace.event({ name: "final-answer", input: output });
-    await tracewell.flush();
+    await spanrail.flush();
 
     // Give the worker a moment to materialize the trace before we link it (ingestion is
     // async by design — see ARCHITECTURE.md).

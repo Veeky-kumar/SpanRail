@@ -1,7 +1,7 @@
-// Package faketracewell is a minimal stand-in for Tracewell's ingestion endpoint. It accepts
+// Package fakespanrail is a minimal stand-in for Spanrail's ingestion endpoint. It accepts
 // every event and counts them, so the gateway's own throughput can be measured without the
 // real database and worker behind it. It is a development tool, not part of the gateway image.
-package faketracewell
+package fakespanrail
 
 import (
 	"encoding/json"

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "spanrail"
+version = "0.1.0"
+description = "Python SDK for Spanrail, a self-hosted LLM observability platform."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = []
+keywords = ["llm", "observability", "tracing", "spanrail"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/Veeky-kumar/spanrail"
+Issues = "https://github.com/Veeky-kumar/spanrail/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/spanrail"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

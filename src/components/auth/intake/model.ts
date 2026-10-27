@@ -1,4 +1,4 @@
-// The intake desk's model: a deterministic scenario, pure data. It replays what Tracewell's ingestion
+// The intake desk's model: a deterministic scenario, pure data. It replays what Spanrail's ingestion
 // pipeline really does (ARCHITECTURE.md, "Ingestion flow"): the API checks the key pair and every event,
 // files each event in a staging table keyed by project + event id, queues only a ticket, and answers 207
 // at once; a worker later pulls a ticket, reads its row, and merges the create and update events of one id

@@ -1,4 +1,4 @@
-package faketracewell
+package fakespanrail
 
 import (
 	"encoding/json"

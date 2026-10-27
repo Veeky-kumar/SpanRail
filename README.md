@@ -1,9 +1,8 @@
-# Tracewell
+# Spanrail
 
-Self-hostable LLM observability, evaluation, and prompt management. An independent
-implementation informed by reverse-engineering Langfuse's open-source architecture —
-see [ARCHITECTURE.md](./ARCHITECTURE.md) for what was verified from its source, what
-Tracewell does differently and why, and a full accounting of known gaps.
+Self-hostable LLM observability, evaluation, and prompt management. See
+[ARCHITECTURE.md](./ARCHITECTURE.md) for how it fits together, the design decisions
+and why, and a full accounting of known gaps.
 
 ## Status
 
@@ -26,8 +25,8 @@ npm run db:migrate               # applies the schema
 npm run db:seed                  # creates a demo user, project, and API key — READ THE OUTPUT
 ```
 
-The seed command prints a demo login (`demo@tracewell.local` / the printed password) and
-an SDK key pair (`TRACEWELL_PUBLIC_KEY` / `TRACEWELL_SECRET_KEY`) — save the secret key,
+The seed command prints a demo login (`demo@spanrail.local` / the printed password) and
+an SDK key pair (`SPANRAIL_PUBLIC_KEY` / `SPANRAIL_SECRET_KEY`) — save the secret key,
 it is hashed at rest and cannot be recovered.
 
 In two separate terminals:
@@ -42,22 +41,22 @@ Sign in at `http://localhost:3000/login` with the seeded demo account.
 ## Sending a trace (SDK)
 
 ```ts
-import { Tracewell } from "./sdk"; // not yet published — import the local source
+import { Spanrail } from "./sdk"; // not yet published — import the local source
 
-const tracewell = new Tracewell({
-  publicKey: process.env.TRACEWELL_PUBLIC_KEY!,
-  secretKey: process.env.TRACEWELL_SECRET_KEY!,
+const spanrail = new Spanrail({
+  publicKey: process.env.SPANRAIL_PUBLIC_KEY!,
+  secretKey: process.env.SPANRAIL_SECRET_KEY!,
   baseUrl: "http://localhost:3000",
 });
 
-const trace = tracewell.trace({ name: "my-agent-run", userId: "user_123" });
+const trace = spanrail.trace({ name: "my-agent-run", userId: "user_123" });
 const span = trace.span({ name: "tool:search", input: { query: "..." } });
 span.end({ output: { results: [] } });
 
 const generation = trace.generation({ name: "llm:answer", model: "gpt-4o-mini" });
 generation.end({ output: "...", usageDetails: { input: 120, output: 40 }, costDetails: { input: 0.00006, output: 0.00004 } });
 
-await tracewell.shutdown(); // flushes any queued events before the process exits
+await spanrail.shutdown(); // flushes any queued events before the process exits
 ```
 
 Runnable, fuller examples:
@@ -66,19 +65,19 @@ Runnable, fuller examples:
 - `examples/run-dataset-eval.ts` — the full dataset → run → deterministic-scorer loop
 
 ```bash
-TRACEWELL_PUBLIC_KEY=pk-tw-... TRACEWELL_SECRET_KEY=sk-tw-... npx tsx examples/simple-agent.ts
+SPANRAIL_PUBLIC_KEY=pk-tw-... SPANRAIL_SECRET_KEY=sk-tw-... npx tsx examples/simple-agent.ts
 ```
 
 ## Prompt management
 
 ```bash
 curl -X POST http://localhost:3000/api/public/prompts \
-  -H "authorization: Basic $(echo -n "$TRACEWELL_PUBLIC_KEY:$TRACEWELL_SECRET_KEY" | base64)" \
+  -H "authorization: Basic $(echo -n "$SPANRAIL_PUBLIC_KEY:$SPANRAIL_SECRET_KEY" | base64)" \
   -H "content-type: application/json" \
   -d '{"name":"support-agent","prompt":"You are a support agent. {{tone}}","labels":["production"]}'
 
 curl "http://localhost:3000/api/public/prompts/support-agent?label=production" \
-  -H "authorization: Basic $(echo -n "$TRACEWELL_PUBLIC_KEY:$TRACEWELL_SECRET_KEY" | base64)"
+  -H "authorization: Basic $(echo -n "$SPANRAIL_PUBLIC_KEY:$SPANRAIL_SECRET_KEY" | base64)"
 ```
 
 Or use the dashboard's Prompts tab, which hits the same code path.
@@ -114,21 +113,21 @@ See [docker-compose.prod.yml](./docker-compose.prod.yml) and the Dockerfiles und
 
 [`gateway/`](./gateway) is a separate service written in **Go** (its own module, standard library plus
 `prometheus/client_golang`). It is a reverse proxy in front of an OpenAI-compatible API: it forwards each
-request unchanged, including streaming responses, and reports the call to Tracewell as a generation with
-DNS / connect / TLS / time-to-first-byte timings. It talks to Tracewell only through the public ingestion API,
+request unchanged, including streaming responses, and reports the call to Spanrail as a generation with
+DNS / connect / TLS / time-to-first-byte timings. It talks to Spanrail only through the public ingestion API,
 so nothing in the Next.js app or the worker depends on it.
 
 ```
-your app --> tracewell-gateway (Go) --> LLM provider
+your app --> spanrail-gateway (Go) --> LLM provider
                    |
-                   +--(async, batched)--> Tracewell  POST /api/public/ingestion
+                   +--(async, batched)--> Spanrail  POST /api/public/ingestion
 ```
 
 It needs **Go 1.27.2+** to build natively (the Docker image builds it for you). Quick start, from the repo
 root, with the key pair that `npm run db:seed` printed:
 
 ```bash
-export TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-...
+export SPANRAIL_PUBLIC_KEY=pk-... SPANRAIL_SECRET_KEY=sk-...
 docker compose --profile gateway up -d --build gateway   # listens on 127.0.0.1:8080
 ```
 
@@ -162,3 +161,7 @@ summarized here:
 - **SDK is TypeScript-only** (the Go gateway is an alternative that needs no SDK, but it only understands
   OpenAI-compatible HTTP traffic), local-source (not published to npm), and has no
   dataset-specific helper methods — dataset/run endpoints are called directly over HTTP.
+
+## License
+
+MIT. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

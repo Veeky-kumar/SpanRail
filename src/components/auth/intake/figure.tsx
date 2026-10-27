@@ -24,7 +24,7 @@ export function IntakeFigure({ fig = "Fig 1" }: { fig?: string }) {
         ]}
         caption={
           <>
-            <span data-detail="">{first.detail}</span> Click to replay. The events are illustrative; the steps are what Tracewell&apos;s ingestion pipeline does.
+            <span data-detail="">{first.detail}</span> Click to replay. The events are illustrative; the steps are what Spanrail&apos;s ingestion pipeline does.
           </>
         }
       >

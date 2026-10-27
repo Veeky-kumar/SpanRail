@@ -16,7 +16,7 @@ import (
 
 const maxResponseBytes = 1 << 20
 
-// HTTPSender posts batches to Tracewell's public ingestion endpoint.
+// HTTPSender posts batches to Spanrail's public ingestion endpoint.
 type HTTPSender struct {
 	url    string
 	auth   string
@@ -63,7 +63,7 @@ func (s *HTTPSender) Send(ctx context.Context, events []Event) Result {
 	resp, err := s.client.Do(req)
 	if err != nil {
 		// url.Error carries the URL but never request headers, so the key cannot appear here.
-		return Result{Retry: events, Err: fmt.Errorf("send to tracewell: %w", err)}
+		return Result{Retry: events, Err: fmt.Errorf("send to spanrail: %w", err)}
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
@@ -75,11 +75,11 @@ func (s *HTTPSender) Send(ctx context.Context, events []Event) Result {
 		return Result{Accepted: len(events)}
 	case resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode == http.StatusRequestTimeout ||
 		resp.StatusCode == http.StatusTooEarly || resp.StatusCode >= 500:
-		// Transient, including a 408/425 from a proxy in front of Tracewell; retrying is safe
+		// Transient, including a 408/425 from a proxy in front of Spanrail; retrying is safe
 		// because ingestion is idempotent per event id.
-		return Result{Retry: events, Err: fmt.Errorf("tracewell responded %d", resp.StatusCode)}
+		return Result{Retry: events, Err: fmt.Errorf("spanrail responded %d", resp.StatusCode)}
 	default: // 3xx (not followed), 400, 401, 403, 413, ...: the same request will fail again
-		return Result{Rejected: len(events), Err: fmt.Errorf("tracewell rejected batch with %d: %s", resp.StatusCode, snippet(data))}
+		return Result{Rejected: len(events), Err: fmt.Errorf("spanrail rejected batch with %d: %s", resp.StatusCode, snippet(data))}
 	}
 }
 
@@ -89,7 +89,7 @@ func classify207(events []Event, data []byte) Result {
 	}
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		// We cannot tell what was stored. Retrying is safe: ingestion is idempotent per event id.
-		return Result{Retry: events, Err: errors.New("tracewell returned an unreadable 207 body")}
+		return Result{Retry: events, Err: errors.New("spanrail returned an unreadable 207 body")}
 	}
 
 	// Validation failures are reported by event id, storage failures by entity (body) id.
@@ -163,7 +163,7 @@ func classify207(events []Event, data []byte) Result {
 		res.Rejected += take
 	}
 	if res.Rejected > 0 || len(res.Retry) > 0 {
-		res.Err = fmt.Errorf("tracewell reported per-event errors (first: %s)", snippet([]byte(firstMsg)))
+		res.Err = fmt.Errorf("spanrail reported per-event errors (first: %s)", snippet([]byte(firstMsg)))
 	}
 	return res
 }

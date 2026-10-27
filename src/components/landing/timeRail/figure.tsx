@@ -43,7 +43,7 @@ export function TimeRailFigure({ timing = SAMPLE_TIMING, fig = "Fig 1", title = 
         ]}
         caption={
           caption ??
-          `A measuring bench for one call. The carriage rides a ruler graduated in ${model.unit === "s" ? "seconds" : "milliseconds"} across one block per phase of the round trip, drawn to scale.${widened} A sensor on the gateway's beam follows it, the dial reads the elapsed time, and the lamp on the logger lights once the call has been reported to Tracewell. Sample data.`
+          `A measuring bench for one call. The carriage rides a ruler graduated in ${model.unit === "s" ? "seconds" : "milliseconds"} across one block per phase of the round trip, drawn to scale.${widened} A sensor on the gateway's beam follows it, the dial reads the elapsed time, and the lamp on the logger lights once the call has been reported to Spanrail. Sample data.`
         }
       >
         <TimeRailArt model={model} fixedStep={fixedStep} slideIn={slideIn} tour={tour} />

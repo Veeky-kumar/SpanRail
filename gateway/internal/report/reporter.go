@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
 )
 
 // Result is the outcome of one Send.
 type Result struct {
-	Accepted int     // events Tracewell stored
+	Accepted int     // events Spanrail stored
 	Rejected int     // events it refused for good (validation, auth): retrying cannot help
 	Retry    []Event // events worth sending again (network error, 429, 5xx)
 	Err      error   // describes any failure; nil when everything was accepted
@@ -39,7 +39,7 @@ type Config struct {
 	Rand  func() float64 // in [0,1)
 }
 
-// Reporter accepts observations from the request path and sends them to Tracewell in the
+// Reporter accepts observations from the request path and sends them to Spanrail in the
 // background. Enqueue never blocks: when the queue is full the observation is dropped and
 // counted, because delaying a customer's LLM call to log it would be the wrong trade.
 type Reporter struct {

@@ -8,7 +8,7 @@ export function HomeBar({ email }: { email: string }) {
   return (
     <header className="border-b border-rule bg-surface">
       <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label="Tracewell, all projects">
+        <Link href="/" aria-label="Spanrail, all projects">
           <Logo />
         </Link>
         <div className="flex items-center gap-3">

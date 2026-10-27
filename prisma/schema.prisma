@@ -252,7 +252,7 @@ model DatasetRun {
 
 // Snapshots the item's input/expectedOutput as of when this run item was created, so a
 // later edit to the dataset item doesn't retroactively change what a past run is judged
-// against — same reasoning as Langfuse's dataset_run_items snapshot (see ARCHITECTURE.md).
+// against (see ARCHITECTURE.md, "Evaluation").
 model DatasetRunItem {
   id             String      @id @default(cuid())
   projectId      String

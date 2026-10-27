@@ -29,11 +29,11 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
           <p className="font-medium text-amber-600">Save this now — the secret key cannot be shown again.</p>
           <div className="mt-2 space-y-1 font-mono">
             <div>
-              <span className="text-muted">TRACEWELL_PUBLIC_KEY=</span>
+              <span className="text-muted">SPANRAIL_PUBLIC_KEY=</span>
               {state.publicKey}
             </div>
             <div>
-              <span className="text-muted">TRACEWELL_SECRET_KEY=</span>
+              <span className="text-muted">SPANRAIL_SECRET_KEY=</span>
               {state.secretKey}
             </div>
           </div>

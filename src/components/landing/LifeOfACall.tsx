@@ -172,7 +172,7 @@ export function LifeOfACall({ figure }: { figure: React.ReactNode }) {
               <dd className="mt-1 text-muted">{stage.happens}</dd>
             </div>
             <div>
-              <dt className="font-medium">What Tracewell records</dt>
+              <dt className="font-medium">What Spanrail records</dt>
               <dd className="mt-1 text-muted">{stage.records}</dd>
             </div>
             <div>

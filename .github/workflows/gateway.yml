@@ -51,4 +51,4 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: build image
-        run: docker build -t tracewell-gateway:ci gateway
+        run: docker build -t spanrail-gateway:ci gateway

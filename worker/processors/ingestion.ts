@@ -31,10 +31,9 @@ interface ObservationUpsertFields {
  * Merge-upsert, not replace-upsert. Only fields explicitly present in `fields` are
  * written, both on create and on update. This is what makes a "start" event followed
  * later by an "end" event (or the reverse, under out-of-order delivery) converge to the
- * same row instead of one event clobbering the other's fields. See ARCHITECTURE.md
- * ingestion-flow note — this is the Postgres-only analog of Langfuse's
- * ReplacingMergeTree dedup, traded for explicit field-level merge since we don't have a
- * column-store engine doing it for us.
+ * same row instead of one event clobbering the other's fields. See ARCHITECTURE.md,
+ * "Ingestion flow". Convergence is done by an explicit field-level merge in Postgres, since
+ * there is no column-store engine to dedupe rows for us.
  */
 async function upsertObservation(projectId: string, fields: ObservationUpsertFields) {
   const { id, traceId, ...rest } = fields;
@@ -150,8 +149,8 @@ export async function processIngestEvent(stagingId: string): Promise<void> {
       break;
 
     case "generation-update": {
-      // SDK-reported cost is authoritative when present — matches the verified Langfuse
-      // precedence rule (provided cost/usage > computed). We do not yet compute cost
+      // SDK-reported cost is authoritative when present (provided cost/usage takes
+      // precedence over computed). We do not yet compute cost
       // from a tokenizer + pricing table when the SDK omits it — documented MVP gap,
       // not a silent one.
       const totalCost = body.costDetails

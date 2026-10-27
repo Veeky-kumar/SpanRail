@@ -2,8 +2,8 @@ import { prisma } from "../src/server/db";
 import { generateApiKeyPair, hashSecretKey, secretKeyPreview } from "../src/server/apiKey";
 import { hashPassword } from "../src/server/password";
 
-const DEMO_EMAIL = "demo@tracewell.local";
-const DEMO_PASSWORD = "tracewell-demo-password";
+const DEMO_EMAIL = "demo@spanrail.local";
+const DEMO_PASSWORD = "spanrail-demo-password";
 
 async function main() {
   const user = await prisma.user.upsert({
@@ -33,8 +33,8 @@ async function main() {
 
   console.log("Seeded demo user:", DEMO_EMAIL, "/ password:", DEMO_PASSWORD);
   console.log("Seeded demo project:", project.id);
-  console.log("TRACEWELL_PUBLIC_KEY=" + publicKey);
-  console.log("TRACEWELL_SECRET_KEY=" + secretKey);
+  console.log("SPANRAIL_PUBLIC_KEY=" + publicKey);
+  console.log("SPANRAIL_SECRET_KEY=" + secretKey);
   console.log("(save the secret key now — it is not stored in plaintext and cannot be retrieved again)");
 }
 

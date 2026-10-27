@@ -1,4 +1,4 @@
-module github.com/veeky-ai/tracewell-gateway
+module github.com/veeky-ai/spanrail-gateway
 
 go 1.27.2
 

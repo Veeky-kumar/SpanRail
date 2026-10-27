@@ -31,7 +31,7 @@ export function ShellNav({
 
   return (
     <div className="flex h-full flex-col gap-5 p-4">
-      <Link href="/" onClick={onNavigate} aria-label="Tracewell, all projects" className="px-1 py-1">
+      <Link href="/" onClick={onNavigate} aria-label="Spanrail, all projects" className="px-1 py-1">
         <Logo />
       </Link>
 

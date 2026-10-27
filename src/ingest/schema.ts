@@ -36,7 +36,7 @@ const SpanUpdateBody = z.object({
 const GenerationCreateBody = SpanCreateBody.extend({
   model: z.string().optional(),
   modelParameters: z.record(z.string(), z.unknown()).optional(),
-  // Denormalized, no FK — same reasoning as Langfuse's prompt-to-observation link (see
+  // Denormalized, no FK (see
   // ARCHITECTURE.md): this is analytics data, the Prompt row is the source of truth.
   promptName: z.string().optional(),
   promptVersion: z.number().int().optional(),

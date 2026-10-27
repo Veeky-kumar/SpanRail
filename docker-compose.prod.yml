@@ -38,7 +38,7 @@ services:
     depends_on:
       - web
     environment:
-      TRACEWELL_BASE_URL: http://web:3000
+      SPANRAIL_BASE_URL: http://web:3000
 
   worker:
     build:

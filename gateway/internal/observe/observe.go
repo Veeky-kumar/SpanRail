@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
-	"github.com/veeky-ai/tracewell-gateway/internal/ids"
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
-	"github.com/veeky-ai/tracewell-gateway/internal/redact"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/ids"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/nettrace"
+	"github.com/veeky-ai/spanrail-gateway/internal/redact"
 )
 
 // statusClientClosed is the (nginx-style) code recorded when the client went away before
@@ -158,13 +158,13 @@ func Handler(next http.Handler, o Options) http.Handler {
 	})
 }
 
-// Headers a caller can send to attach a call to an existing Tracewell trace.
+// Headers a caller can send to attach a call to an existing Spanrail trace.
 const (
-	HeaderTraceID  = "X-Tracewell-Trace-Id"
-	HeaderParentID = "X-Tracewell-Parent-Observation-Id"
+	HeaderTraceID  = "X-Spanrail-Trace-Id"
+	HeaderParentID = "X-Spanrail-Parent-Observation-Id"
 )
 
-// validID limits what a caller can put into a Tracewell id. The value ends up in a JSON
+// validID limits what a caller can put into a Spanrail id. The value ends up in a JSON
 // document and in database keys, so only a conservative alphabet and length are accepted.
 var validID = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,128}$`)
 
@@ -182,7 +182,7 @@ func traceLink(h http.Header) (traceID, parentID string) {
 }
 
 // maxPathLen bounds the request path copied into reported events. The path is chosen by the
-// caller, and one oversized value inside a batch could make Tracewell refuse the whole batch.
+// caller, and one oversized value inside a batch could make Spanrail refuse the whole batch.
 const maxPathLen = 256
 
 func capPath(p string) string {

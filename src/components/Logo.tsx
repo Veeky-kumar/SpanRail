@@ -1,4 +1,4 @@
-// The Tracewell mark is a time ruler: five phases of a call laid end to end (the same ramp the
+// The Spanrail mark is a time ruler: five phases of a call laid end to end (the same ramp the
 // time budget uses), with tick marks underneath. It is the product's one recurring visual idea.
 const SEGMENTS = [
   { x: 0, w: 3, fill: "rgb(var(--t1))" },
@@ -26,7 +26,7 @@ export function Logo({ className = "" }: { className?: string }) {
   return (
     <span className={`inline-flex items-center gap-2 ${className}`}>
       <LogoMark />
-      <span className="text-[17px] font-semibold leading-none tracking-[-0.02em]">Tracewell</span>
+      <span className="text-[17px] font-semibold leading-none tracking-[-0.02em]">Spanrail</span>
     </span>
   );
 }

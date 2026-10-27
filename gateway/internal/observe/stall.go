@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
 )
 
 // stallGuard wraps a request body so that a client which stops sending is cut off, without
