@@ -70,9 +70,7 @@ const FAQ = [
   },
 ];
 
-const RUN_IT = `cp .env.production.example .env.production
-docker compose -f docker-compose.yml -f docker-compose.prod.yml \\
-  --env-file .env.production up -d --build`;
+const RUN_IT = `curl -fsSL https://raw.githubusercontent.com/Veeky-kumar/SpanRail/main/deploy/install.sh | sh`;
 
 const GATEWAY_RUN = `docker run -p 127.0.0.1:8080:8080 \\
   -e UPSTREAM_URL=https://api.openai.com \\

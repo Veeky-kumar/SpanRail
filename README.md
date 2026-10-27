@@ -12,6 +12,29 @@ with per-project access control, an analytics overview, and an optional Go gatew
 records LLM calls (with network timing) without changing the calling app. **Not** production-hardened —
 see "Known limitations" below before exposing this to anything but a trusted network.
 
+## Install (one command)
+
+Requires Docker with Compose v2. This pulls the published images; there is nothing to clone or build:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Veeky-kumar/SpanRail/main/deploy/install.sh | sh
+```
+
+It creates a `spanrail/` folder, writes a `.env` with freshly generated secrets, starts Postgres, Redis, the
+web app and the worker (applying database migrations first) and prints the address, `http://localhost:3000`.
+Create an account there, then a project and an API key, and send your first trace with
+`pip install spanrail` (see below) or the gateway.
+
+Prefer to read before running? [`deploy/install.sh`](./deploy/install.sh) is short, and the stack is just
+[`deploy/docker-compose.yml`](./deploy/docker-compose.yml) plus a `.env` (copy
+[`deploy/.env.example`](./deploy/.env.example) and fill in the three secrets with `openssl rand -hex 32`).
+Add the gateway with `docker compose --profile gateway up -d` once you have a key pair in `.env`.
+
+The web app listens on `127.0.0.1` only: sign-up is open and there is no rate limiting yet, so put a reverse
+proxy with TLS in front before exposing it (set `WEB_BIND=0.0.0.0` only behind one). Pin a version with
+`SPANRAIL_VERSION=0.1.0` in `.env`; `latest` is the default. **Back up `.env`**: losing `API_KEY_SALT`
+invalidates every API key.
+
 ## Quick start (local development)
 
 Requires Node 24+, Docker, and a Postgres + Redis pair (the included Compose file

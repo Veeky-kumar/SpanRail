@@ -1,0 +1,103 @@
+# Spanrail, ready to run from published images. No clone or build needed:
+#
+#   curl -fsSL https://raw.githubusercontent.com/Veeky-kumar/SpanRail/main/deploy/install.sh | sh
+#
+# or, by hand: copy this file and .env.example (as .env) into a folder, fill in the secrets and run
+#   docker compose up -d
+#
+# Open http://localhost:3000, create an account, create a project and an API key.
+# Add the gateway too with:  docker compose --profile gateway up -d
+
+name: spanrail
+
+x-app-env: &app-env
+  DATABASE_URL: postgresql://spanrail:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/spanrail
+  REDIS_URL: redis://redis:6379
+  API_KEY_SALT: ${API_KEY_SALT:?set API_KEY_SALT in .env}
+  AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spanrail
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: spanrail
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spanrail"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Append-only persistence, so queued ingestion jobs survive a restart.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Applies database migrations, then exits. The web app and the worker wait for it to succeed.
+  migrate:
+    image: ghcr.io/veeky-kumar/spanrail-worker:${SPANRAIL_VERSION:-latest}
+    command: ["npx", "prisma", "migrate", "deploy"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  web:
+    image: ghcr.io/veeky-kumar/spanrail-web:${SPANRAIL_VERSION:-latest}
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    # Bound to this machine only. Sign-up is open and there is no rate limiting yet, so put a
+    # reverse proxy with TLS in front before exposing it: set WEB_BIND=0.0.0.0 only behind one.
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+
+  worker:
+    image: ghcr.io/veeky-kumar/spanrail-worker:${SPANRAIL_VERSION:-latest}
+    restart: unless-stopped
+    environment: *app-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # Optional (profile "gateway"): a reverse proxy in front of an OpenAI-compatible API that reports
+  # each call with DNS / connect / TLS / first-byte timings. It needs a project API key, which you
+  # can only create once the web app is running: put it in .env as SPANRAIL_PUBLIC_KEY and
+  # SPANRAIL_SECRET_KEY, then start it with --profile gateway.
+  gateway:
+    profiles: ["gateway"]
+    image: ghcr.io/veeky-kumar/spanrail-gateway:${SPANRAIL_GATEWAY_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      UPSTREAM_URL: ${UPSTREAM_URL:-https://api.openai.com}
+      SPANRAIL_BASE_URL: http://web:3000
+      SPANRAIL_PUBLIC_KEY: ${SPANRAIL_PUBLIC_KEY:-}
+      SPANRAIL_SECRET_KEY: ${SPANRAIL_SECRET_KEY:-}
+    depends_on:
+      - web
+    # The gateway does not authenticate its callers, so it stays on this machine by default.
+    ports:
+      - "${GATEWAY_BIND:-127.0.0.1}:8080:8080"
+
+volumes:
+  postgres_data:
+  redis_data:

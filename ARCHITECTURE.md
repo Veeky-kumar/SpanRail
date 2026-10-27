@@ -238,7 +238,8 @@ under sustained load above Spanrail's ingest rate it drops events by design.
 
 - **Local development**: `docker compose` for Postgres and Redis, `npm run dev` for the app, a separate
   worker process.
-- **Self-host**: `docker-compose.prod.yml` with Dockerfiles under `docker/` (Next.js
+- **One-command install** (`deploy/`): `install.sh` writes a `.env` with generated secrets and starts `deploy/docker-compose.yml`, which pulls the published `spanrail-web`, `spanrail-worker` and (optionally, profile `gateway`) `spanrail-gateway` images from GHCR. A one-shot `migrate` service runs `prisma migrate deploy` before the web app and worker start. The web port is bound to `127.0.0.1` by default.
+- **Self-host from source**: `docker-compose.prod.yml` with Dockerfiles under `docker/` (Next.js
   `output: "standalone"`). Run migrations and seeds through the `worker` container, because the standalone
   web image drops dev tooling, including the `prisma` CLI.
 - **Single-process platforms**: with `ENABLE_INPROCESS_WORKER=true`, `src/instrumentation.ts` starts the
