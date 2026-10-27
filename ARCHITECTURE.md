@@ -188,17 +188,36 @@ in `src/components/iso/` (MIT, notice kept beside it). Every number a figure sho
 nothing on it is decorative data. Figures obey `prefers-reduced-motion` for automatic motion, and motion the
 user asks for (Play, Replay, stepping) still plays.
 
-### Analytics page
+### Analytics (three tabs)
 
-`/projects/:id/analytics`: KPI row (trace count, error rate, total cost, p50 and p95 latency) plus
-trace-volume, cost and top-model charts, filterable to 7, 14 or 30 days. Latency percentiles use Postgres
-`percentile_cont` over per-trace durations, so they are true percentiles, not approximations. Every query
-is scoped by `projectId` and the selected range, so every number on the page agrees.
+`/projects/:id/analytics` has three views that share one date range (7, 14 or 30 days, kept in `?days=` so every
+view is a link):
 
-Charts are hand-built inline SVG (no charting library): single-hue sequential colour per metric, no
-dual-axis charts, a table-view toggle on every chart, and a real hover layer. The categorical palette was
-checked with a validator script rather than by eye. Verified against real ingested data: with 9 traces
-(one erroring tool call) the KPI tiles matched a direct database cross-check.
+- **Overview.** A one-sentence headline, six KPI tiles (traces, error rate, p50 and p95 latency, cost, cost per
+  1,000 traces) each with its change against the period before and a trend line, then trace volume with failed
+  traces underneath, cost per day, p50 and p95 per day, top models, and a weekday-by-hour grid (UTC). "The period
+  before" is `getOverviewStats(projectId, days, 1)`, the same query shifted back one window, so a tile and its
+  comparison are always measured the same way.
+- **Models.** Models switch on and off, and the KPIs, the stacked daily cost and the comparison table all follow.
+  The table sorts by any column. The six models with the most spend are named and the rest are folded into
+  "Other" (one colour each, never colour alone: every model is also named in the chips, the day panel and the
+  table). "What changed" is plain-language text from `src/lib/insights.ts`, written from the same numbers.
+- **Gateway.** Where a call spends its time, read from `metadata.gateway.timingMs` through `parseGatewayTiming`,
+  so "upstream wait" and "response transfer" mean here what they mean in the trace view. It shows the average
+  call split into phases, a scrubber along that call, a histogram of call durations with p50 and p95, and a
+  treemap of models. A phase that did not happen on a call (a reused connection has no DNS, connect or TLS)
+  counts as 0 ms on that call, so the phases describe the average call. The page reads the most recent 5,000
+  gateway calls in the period and says so when there are more.
+
+Latency percentiles use Postgres `percentile_cont`, so they are true percentiles, not approximations. Every
+query is scoped by `projectId` and the selected range. The "Failed" and latency figures on the Models tab are per
+generation (a generation's own duration), while the Overview figures are per trace; the page says which.
+
+Charts are hand-built inline SVG (no charting library): no dual-axis charts, a table-view toggle on the
+Overview charts, and a real hover layer. The pure parts (sparklines, treemap layout, timing summary, insights,
+heatmap grid) are in `src/lib/` and unit-tested; the queries were checked against a seeded database and the pages
+in a browser, in both themes. The six model colours (`--viz-c1` to `--viz-c6`) were chosen by eye and have not
+been run through a colour-blindness validator, which is why a model's name always sits next to its colour.
 
 Scaling note: these queries read `Observation` directly with no rollup table. That is fine at MVP volume;
 the first remedy is a materialised daily rollup, not a rewrite.

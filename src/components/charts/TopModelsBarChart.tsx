@@ -16,7 +16,8 @@ export function TopModelsBarChart({ data }: { data: ModelUsage[] }) {
   }
 
   const max = Math.max(1, ...data.map((d) => d.generationCount));
-  const plotWidth = WIDTH - LABEL_WIDTH - PAD;
+  // Leave room after the longest bar for its value label, which would otherwise be cut off at the edge.
+  const plotWidth = WIDTH - LABEL_WIDTH - PAD - 56;
   const height = data.length * ROW_HEIGHT;
 
   return (

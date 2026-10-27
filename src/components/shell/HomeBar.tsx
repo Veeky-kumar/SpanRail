@@ -5,12 +5,12 @@ import { logoutAction } from "@/app/actions";
 import { isAdminEmail } from "@/lib/admin";
 
 /** Top bar for screens that are not inside a project (the projects home). */
-export function HomeBar({ email }: { email: string }) {
+export function HomeBar({ email, wide = false }: { email: string; wide?: boolean }) {
   // Only people listed in ADMIN_EMAILS see the link; /admin/growth itself returns a 404 to everyone else.
   const admin = isAdminEmail(email, process.env.ADMIN_EMAILS);
   return (
     <header className="border-b border-rule bg-surface">
-      <div className="mx-auto flex h-14 max-w-4xl items-center justify-between gap-4 px-4 sm:px-6">
+      <div className={`mx-auto flex h-14 ${wide ? "max-w-6xl" : "max-w-4xl"} items-center justify-between gap-4 px-4 sm:px-6`}>
         <Link href="/" aria-label="Spanrail, all projects">
           <Logo />
         </Link>
