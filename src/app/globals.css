@@ -197,6 +197,26 @@ body {
   .input {
     @apply w-full rounded-data border border-rule bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent;
   }
+  /* The one orchestrated moment: on the landing hero the ruler's phases draw in once, left to
+     right. Scoped to .ruler-grow so the detail panel never replays it on every click. */
+  .ruler-grow .ruler-seg {
+    transform-origin: left;
+    animation: ruler-grow 600ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 150ms);
+  }
+  @keyframes ruler-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ruler-grow .ruler-seg {
+      animation: none;
+    }
+  }
   /* Display type (apple-design): tracking tightens as size grows, leading follows. */
   .display {
     @apply font-semibold;

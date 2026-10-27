@@ -1,17 +1,21 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { auth } from "@/server/auth";
 import { listUserProjects } from "@/server/projects";
 import { formatRelativeTime } from "@/lib/format";
 import { HomeBar } from "@/components/shell/HomeBar";
+import { Landing } from "@/components/landing/Landing";
 import { SubmitButton } from "@/components/SubmitButton";
 import { createProjectAction } from "./actions";
 
-export const metadata = { title: "Projects" };
+// Signed-out visitors see the landing page at this URL, so only signed-in views get the "Projects" title.
+export async function generateMetadata() {
+  const session = await auth();
+  return session?.user ? { title: "Projects" } : {};
+}
 
 export default async function HomePage() {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) return <Landing />;
 
   const projects = await listUserProjects(session.user.id);
 
