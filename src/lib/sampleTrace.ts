@@ -1,5 +1,7 @@
 // Illustrative data for product visuals (login panel, landing page). It is labelled "Sample data"
 // wherever it is shown; it is not read from, or written to, any project.
+import { parseGatewayTiming } from "@/lib/gatewayTiming";
+
 export const SAMPLE_MODEL = "example-model-small";
 
 export const SAMPLE_GATEWAY_METADATA = {
@@ -11,15 +13,8 @@ export const SAMPLE_GATEWAY_METADATA = {
   },
 };
 
-// The same call on a reused keep-alive connection: no DNS, connect or TLS phase exists.
-export const SAMPLE_REUSED_METADATA = {
-  gateway: {
-    status: 200,
-    connReused: true,
-    streaming: false,
-    timingMs: { ttfb: 201, total: 308 },
-  },
-};
+/** The sample call, parsed once. A reused connection is this call without its setup phases. */
+export const SAMPLE_TIMING = parseGatewayTiming(SAMPLE_GATEWAY_METADATA)!;
 
 // A small sample trace for the landing page: spans on one shared time axis (milliseconds).
 export const SAMPLE_TRACE_MS = 612;
