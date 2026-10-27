@@ -7,7 +7,7 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const { pathname } = req.nextUrl;
-  const isPublicApi = pathname.startsWith("/api/public") || pathname.startsWith("/api/auth");
+  const isPublicApi = pathname.startsWith("/api/public") || pathname.startsWith("/api/auth") || pathname === "/api/health";
 
   if (isPublicApi) return;
 

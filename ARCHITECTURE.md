@@ -152,6 +152,24 @@ Verified against the real NextAuth HTTP protocol (CSRF token, credentials callba
 mocked. Known boundary: `OWNER` and `MEMBER` currently have the same permissions. The enum exists for
 future use and nothing branches on it.
 
+### Running it in public
+
+Three protections for an instance that anyone can reach, all in `src/lib/rateLimit.ts` (a fixed-window counter
+held in memory) and `src/lib/signups.ts`:
+
+- **Sign-in:** 10 attempts a minute per address and 8 per 10 minutes per email, counted on every attempt, so
+  guesses cannot be spread across addresses or retried against one account.
+- **Sign-up:** 5 a hour per address, and `SIGNUPS_DISABLED=true` closes registration entirely. The check runs in
+  the server action as well as on the page, so a hand-built request is refused too.
+- **Ingestion:** 30 wrong-key requests a minute per address, then 429 with `Retry-After`; and 1,200 requests a
+  minute per project. Both SDKs and the gateway retry on 429.
+
+The counters live in one process. With several web replicas each counts alone, so the real limit is the limit
+times the replica count; a shared store (Redis is already a dependency) is the fix if that matters. The address is
+read from `x-forwarded-for` only as a counter key; it is never stored. `GET /api/health` runs `SELECT 1` and
+returns `{"status":"ok"}` or 503 with nothing else, and is the one public route outside `/api/public` and
+`/api/auth`.
+
 ## The dashboard
 
 - **Home** (signed in): a three-column page. The left rail shows workspace numbers from the database
@@ -288,8 +306,9 @@ Done and recorded so it is not merely claimed:
 
 ## Known MVP gaps
 
-- No rate limiting on the ingestion API or the dashboard.
-- No password reset or email flow, and sign-up is open.
+- Rate limits cover sign-in, sign-up and ingestion only, and are per process (see "Running it in public"). Other
+  dashboard actions have none.
+- No password reset or email flow; sign-up is open unless `SIGNUPS_DISABLED=true`.
 - No blob storage or replay log.
 - No LLM-as-judge scorer; deterministic scorers only.
 - The SDK is TypeScript only, not published, and has no dataset helper methods.

@@ -129,6 +129,12 @@ Spanrail has no telemetry: a self-hosted install never reports anything to anyon
   (`sr_src`, 30 days) carries the source from the first page to the sign-up and is skipped when the browser sends
   Do Not Track.
 
+## Running it in public
+
+If the app is reachable from the internet, set `SIGNUPS_DISABLED=true` once your team has accounts: existing users
+still sign in and the sign-up page says registration is closed. Sign-in, sign-up and ingestion are rate limited
+(details in ARCHITECTURE.md), and `GET /api/health` answers `{"status":"ok"}` (or 503) for an uptime monitor.
+
 ## Prompt management
 
 ```bash
@@ -217,7 +223,9 @@ build, `govulncheck` and a Docker image build.
 Tracked in detail in [ARCHITECTURE.md](./ARCHITECTURE.md#known-mvp-gaps-explicit-not-hidden),
 summarized here:
 
-- **No rate limiting.** The ingestion API and dashboard have no request-rate enforcement.
+- **Basic rate limits only.** Sign-in, sign-up and ingestion are limited per address and per project, in memory in
+  each web process (see "Running it in public" in ARCHITECTURE.md). The rest of the dashboard has none, and there is
+  no password reset or email flow.
 - **No LLM-as-judge evaluation.** Deterministic scorers (`exact_match`, `contains`,
   `json_valid`) are implemented and tested; model-based judging is architecturally
   anticipated (reserved `llm_judge:*` naming) but not wired to any provider — it would
