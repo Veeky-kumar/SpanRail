@@ -54,18 +54,17 @@ export function GatewayTiming({ metadata }: { metadata: unknown }) {
           className="mt-3"
         >
           <div className="relative h-7 overflow-hidden rounded border border-rule bg-canvas">
-            {layout.map((s, i) => {
+            {layout.map((s) => {
               const phase = timing.phases.find((p) => p.key === s.key)!;
               return (
                 <div
                   key={s.key}
                   title={`${phase.label}: ${fmt(phase.ms)}`}
-                  className={`ruler-seg absolute inset-y-0 ${PHASE_BG[s.key]}`}
+                  className={`absolute inset-y-0 ${PHASE_BG[s.key]}`}
                   style={{
                     left: `${s.startPct}%`,
                     width: `${s.widthPct}%`,
                     boxShadow: "inset -1px 0 0 rgb(var(--surface))",
-                    ["--i" as string]: i,
                   }}
                 />
               );

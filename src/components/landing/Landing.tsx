@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
-import { ProductVisual } from "@/components/ProductVisual";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { LifeOfACall } from "@/components/landing/LifeOfACall";
 import { OnThisPage, type PageSection } from "@/components/landing/OnThisPage";
@@ -132,27 +131,30 @@ export function Landing() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 xl:grid xl:grid-cols-[minmax(0,1fr)_11rem] xl:gap-12">
         <main>
           <section id="overview" aria-labelledby="overview-title" className="scroll-mt-20 pb-16 pt-10 lg:pt-16">
-            <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-              <div>
-                <h1 id="overview-title" className="display-xl">
-                  See where every LLM call spends its time.
-                </h1>
-                <p className="mt-6 max-w-lg text-lg text-muted">
-                  Tracewell is a self-hosted place for traces, evaluations and prompts. Its Go gateway measures DNS,
-                  connect, TLS and first byte for every call that passes through it.
-                </p>
-                <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href="/signup" className="btn-primary px-5 py-2.5">
-                    Create account
-                  </Link>
-                  <Link href="/login" className="btn-secondary px-5 py-2.5">
-                    Sign in
-                  </Link>
-                </div>
-              </div>
-              <div className="ruler-grow">
-                <ProductVisual />
-              </div>
+            <h1 id="overview-title" className="display-xl max-w-4xl">
+              See where every LLM call spends its time.
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg text-muted">
+              Tracewell is a self-hosted place for traces, evaluations and prompts. Its Go gateway measures DNS,
+              connect, TLS and first byte for every call that passes through it, and draws each one to scale.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/signup" className="btn-primary px-5 py-2.5">
+                Create account
+              </Link>
+              <Link href="/login" className="btn-secondary px-5 py-2.5">
+                Sign in
+              </Link>
+            </div>
+            <div className="mt-12">
+              <TimeRailFigure
+                fig="Fig 1"
+                title="One call, drawn to scale"
+                hint="A sample call"
+                fixedStep={6}
+                slideIn
+                caption="A sample call from request to report, drawn on the time rail: one block for each phase of the round trip. The carriage travels the call once when the page loads. Sample data."
+              />
             </div>
           </section>
 
@@ -166,7 +168,7 @@ export function Landing() {
               The life of a call
             </Heading>
             <div className="mt-8">
-              <LifeOfACall figure={<TimeRailFigure />} />
+              <LifeOfACall figure={<TimeRailFigure fig="Fig 2" title="The time rail" />} />
             </div>
           </section>
 
