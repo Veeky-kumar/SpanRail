@@ -1,8 +1,8 @@
 name: publish-sdk-python
 
-# Publishes tracewell-py to PyPI when a tag named sdk-py-vX.Y.Z is pushed. Uses PyPI trusted
+# Publishes spanrail to PyPI when a tag named sdk-py-vX.Y.Z is pushed. Uses PyPI trusted
 # publishing (OIDC), so no API token is stored in GitHub. The trusted publisher must be configured
-# on PyPI first (project tracewell-py, this repository, workflow publish-sdk-python.yml).
+# on PyPI first (project spanrail, this repository, workflow publish-sdk-python.yml).
 on:
   push:
     tags: ["sdk-py-v*"]

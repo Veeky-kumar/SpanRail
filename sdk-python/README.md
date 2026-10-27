@@ -1,19 +1,19 @@
-# tracewell-py
+# spanrail
 
 Python SDK for [Tracewell](https://github.com/Veeky-kumar/tracewell), a self-hosted LLM observability
 platform. No dependencies; Python 3.9 or newer.
 
 ```
-pip install tracewell-py
+pip install spanrail
 ```
 
-The import name is `tracewell`.
+The import name is `spanrail`; the client class is `Tracewell`, because it talks to a Tracewell server.
 
 ## Send a trace
 
 ```python
 from openai import OpenAI
-from tracewell import Tracewell
+from spanrail import Tracewell
 
 tw = Tracewell("pk-...", "sk-...", base_url="http://localhost:3000")
 client = OpenAI()

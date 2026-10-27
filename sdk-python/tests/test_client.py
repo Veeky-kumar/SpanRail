@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from tracewell import Tracewell
+from spanrail import Tracewell
 
 
 class Server:

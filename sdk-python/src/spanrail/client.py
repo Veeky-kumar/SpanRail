@@ -20,7 +20,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-log = logging.getLogger("tracewell")
+log = logging.getLogger("spanrail")
 
 Json = Dict[str, Any]
 LEVELS = ("DEBUG", "DEFAULT", "WARNING", "ERROR")
