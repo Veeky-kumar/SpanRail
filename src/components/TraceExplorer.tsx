@@ -78,7 +78,7 @@ export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
 
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-      <div className="self-start overflow-hidden rounded-[10px] border border-rule bg-surface">
+      <div className="self-start overflow-hidden rounded-data border border-rule bg-surface">
         <div className="max-h-[70vh] overflow-y-auto" role="list" aria-label="Spans in this trace">
           {rows.map((row) => {
             const obs = row.observation;
@@ -144,7 +144,7 @@ export function TraceExplorer({ tree }: { tree: SerializedTreeNode[] }) {
         </div>
       </div>
 
-      <div className="rounded-[10px] border border-rule bg-surface">
+      <div className="rounded-data border border-rule bg-surface">
         {selected ? (
           <div key={selected.id} className="reveal-fast">
             <ObservationDetail observation={selected} />

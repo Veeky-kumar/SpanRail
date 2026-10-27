@@ -24,6 +24,12 @@ export default {
       },
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
+      },
+      // Sharp where you read data, soft where you interact (menus, popovers, sheets).
+      borderRadius: {
+        data: "3px",
+        overlay: "12px",
       },
     },
   },
