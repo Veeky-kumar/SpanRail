@@ -5,7 +5,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from spanrail import Tracewell
+from spanrail import Spanrail
 
 
 class Server:
@@ -55,7 +55,7 @@ def server():
 
 
 def client(server, **kw):
-    return Tracewell("pk", "sk", server.url, flush_interval=60, retries=2, **kw)
+    return Spanrail("pk", "sk", server.url, flush_interval=60, retries=2, **kw)
 
 
 def test_trace_tree_and_event_shapes(server):
@@ -157,21 +157,21 @@ def test_a_bad_key_is_dropped_without_retry_and_never_raises():
 
 
 def test_unreachable_server_never_raises_into_the_app():
-    tw = Tracewell("pk", "sk", "http://127.0.0.1:9", flush_interval=60, retries=1, timeout=0.5)
+    tw = Spanrail("pk", "sk", "http://127.0.0.1:9", flush_interval=60, retries=1, timeout=0.5)
     tw.trace("x").generation().end()
     tw.flush()
     assert tw.dropped == 3 and tw.sent == 0
 
 
 def test_full_queue_drops_and_counts():
-    tw = Tracewell("pk", "sk", "http://127.0.0.1:9", flush_interval=60, max_queue=2, flush_at=1000)
+    tw = Spanrail("pk", "sk", "http://127.0.0.1:9", flush_interval=60, max_queue=2, flush_at=1000)
     for _ in range(5):
         tw.trace()
     assert tw.dropped == 3
 
 
 def test_background_thread_flushes_by_itself(server):
-    tw = Tracewell("pk", "sk", server.url, flush_at=1, flush_interval=60)
+    tw = Spanrail("pk", "sk", server.url, flush_at=1, flush_interval=60)
     tw.trace("x")
     for _ in range(100):
         if server.events:

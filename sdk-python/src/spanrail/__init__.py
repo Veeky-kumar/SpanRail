@@ -1,4 +1,4 @@
-from .client import Generation, Span, Trace, Tracewell
+from .client import Generation, Span, Trace, Spanrail
 
-__all__ = ["Tracewell", "Trace", "Span", "Generation"]
+__all__ = ["Spanrail", "Trace", "Span", "Generation"]
 __version__ = "0.1.0"

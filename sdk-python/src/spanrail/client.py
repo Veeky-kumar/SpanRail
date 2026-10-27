@@ -1,7 +1,7 @@
-"""Tracewell client: queues events and sends them to /api/public/ingestion in the background.
+"""Spanrail client: queues events and sends them to /api/public/ingestion in the background.
 
 The SDK never raises into the host application on the tracing path. A batch that cannot be sent is
-retried a few times and then dropped and counted (``Tracewell.dropped``), the same trade the Go gateway
+retried a few times and then dropped and counted (``Spanrail.dropped``), the same trade the Go gateway
 makes: losing a trace is better than slowing or breaking the call being traced.
 """
 
@@ -36,8 +36,8 @@ def _clean(body: Json) -> Json:
     return {k: v for k, v in body.items() if v is not None}
 
 
-class Tracewell:
-    """Client for one Tracewell project (one public/secret key pair)."""
+class Spanrail:
+    """Client for one Spanrail project (one public/secret key pair)."""
 
     def __init__(
         self,
@@ -67,7 +67,7 @@ class Tracewell:
         self.dropped = 0
         self.sent = 0
 
-        self._thread = threading.Thread(target=self._run, name="tracewell-flush", daemon=True)
+        self._thread = threading.Thread(target=self._run, name="spanrail-flush", daemon=True)
         self._thread.start()
         atexit.register(self.shutdown)
 
@@ -123,7 +123,7 @@ class Tracewell:
             with urllib.request.urlopen(req, timeout=self._timeout) as res:
                 return json.loads(res.read())
         except urllib.error.HTTPError as err:
-            raise RuntimeError(f"Tracewell get_prompt failed: {err.code} {err.read().decode(errors='replace')}") from err
+            raise RuntimeError(f"Spanrail get_prompt failed: {err.code} {err.read().decode(errors='replace')}") from err
 
     # -- delivery ------------------------------------------------------------------------------
 
@@ -161,7 +161,7 @@ class Tracewell:
             try:
                 self.flush()
             except Exception:  # never let the worker thread die
-                log.exception("tracewell: unexpected error while flushing")
+                log.exception("spanrail: unexpected error while flushing")
 
     def _send_one_batch(self) -> bool:
         with self._sending:
@@ -188,24 +188,24 @@ class Tracewell:
                 with urllib.request.urlopen(req, timeout=self._timeout) as res:
                     result = json.loads(res.read() or b"{}")
                 for err in result.get("errors", []):
-                    log.warning("tracewell: event %s rejected (%s): %s", err.get("id"), err.get("status"), err.get("message"))
+                    log.warning("spanrail: event %s rejected (%s): %s", err.get("id"), err.get("status"), err.get("message"))
                 return True
             except urllib.error.HTTPError as err:
                 if err.code < 500 and err.code != 429:
-                    log.warning("tracewell: ingestion rejected the batch: %s %s", err.code, err.read()[:200])
+                    log.warning("spanrail: ingestion rejected the batch: %s %s", err.code, err.read()[:200])
                     return False  # retrying a 4xx would not change the answer
             except Exception as err:  # network error, timeout, bad JSON
-                log.debug("tracewell: ingestion attempt %d failed: %s", attempt + 1, err)
+                log.debug("spanrail: ingestion attempt %d failed: %s", attempt + 1, err)
             if attempt < self._retries:
                 time.sleep(min(0.2 * 2**attempt, 2.0))
-        log.warning("tracewell: dropped %d events after %d attempts", len(batch), self._retries + 1)
+        log.warning("spanrail: dropped %d events after %d attempts", len(batch), self._retries + 1)
         return False
 
 
 class _Node:
     """Shared behaviour of anything that can hold children: a trace, a span or a generation."""
 
-    def __init__(self, client: Tracewell, trace_id: str, id_: str) -> None:
+    def __init__(self, client: Spanrail, trace_id: str, id_: str) -> None:
         self._client = client
         self.trace_id = trace_id
         self.id = id_
@@ -278,7 +278,7 @@ class _Node:
 
 
 class Trace(_Node):
-    def __init__(self, client: Tracewell, trace_id: str) -> None:
+    def __init__(self, client: Spanrail, trace_id: str) -> None:
         super().__init__(client, trace_id, trace_id)
 
 

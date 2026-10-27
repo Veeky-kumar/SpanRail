@@ -25,13 +25,13 @@ type Config struct {
 
 	PeekBytes       int64    // request-body prefix inspected for model/stream
 	ParseMaxBytes   int64    // largest response held in memory to read token usage from
-	CaptureBodies   bool     // report request/response bodies to Tracewell (off by default)
+	CaptureBodies   bool     // report request/response bodies to Spanrail (off by default)
 	CaptureMaxBytes int      // cap on each reported body
 	CaptureHeaders  bool     // report request headers, redacted (off by default)
 	RedactHeaders   []string // extra header names to redact, on top of the built-in list
 
-	ReportEnabled     bool // false = plain proxy, nothing is sent to Tracewell
-	TracewellURL      *url.URL
+	ReportEnabled     bool // false = plain proxy, nothing is sent to Spanrail
+	SpanrailURL       *url.URL
 	PublicKey         string
 	SecretKey         Secret
 	BatchSize         int // events per ingestion request
@@ -39,11 +39,11 @@ type Config struct {
 	QueueSize         int // observations buffered before new ones are dropped
 	ReportWorkers     int
 	ReportMaxAttempts int
-	ReportTimeout     time.Duration // per HTTP attempt to Tracewell
+	ReportTimeout     time.Duration // per HTTP attempt to Spanrail
 }
 
 // Secret is a string that refuses to print itself, so a stray log line or %+v of the
-// whole Config cannot leak the Tracewell secret key.
+// whole Config cannot leak the Spanrail secret key.
 type Secret string
 
 func (Secret) String() string             { return "[REDACTED]" }
@@ -135,22 +135,22 @@ func loadReporting(getenv func(string) string, c Config) (Config, error) {
 		return c, nil
 	}
 
-	base := getenv("TRACEWELL_BASE_URL")
+	base := getenv("SPANRAIL_BASE_URL")
 	if base == "" {
 		base = "http://localhost:3000"
 	}
 	u, err := url.Parse(base)
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return c, fmt.Errorf("TRACEWELL_BASE_URL must be an http(s) URL with a host, got %q", base)
+		return c, fmt.Errorf("SPANRAIL_BASE_URL must be an http(s) URL with a host, got %q", base)
 	}
-	c.TracewellURL = u
+	c.SpanrailURL = u
 
-	if c.PublicKey = getenv("TRACEWELL_PUBLIC_KEY"); c.PublicKey == "" {
-		return c, errors.New("TRACEWELL_PUBLIC_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
+	if c.PublicKey = getenv("SPANRAIL_PUBLIC_KEY"); c.PublicKey == "" {
+		return c, errors.New("SPANRAIL_PUBLIC_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
 	}
-	secret := getenv("TRACEWELL_SECRET_KEY")
+	secret := getenv("SPANRAIL_SECRET_KEY")
 	if secret == "" {
-		return c, errors.New("TRACEWELL_SECRET_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
+		return c, errors.New("SPANRAIL_SECRET_KEY is required (or set REPORT_ENABLED=false to run as a plain proxy)")
 	}
 	c.SecretKey = Secret(secret)
 

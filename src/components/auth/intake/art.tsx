@@ -173,7 +173,7 @@ const PRESS_FRONT = (
 );
 
 const LABEL =
-  "A desk that shows how Tracewell turns an LLM call into a stored trace. A batch of three events, small paper parcels, waits in a bin on the left. They pass a gate with a key slot, where a receipt slip pops out at once: the API answers before any work is done. The parcels go into a numbered tray, and one lamp for each waiting event lights on the queue panel. A press takes them one at a time and merges the create and update parcels of one call into a single layer. The result is filed in a tray, and a screen on the right builds the trace tree from what is filed. A second batch arrives with its update first and a resend of an event already seen; the resend is turned away onto a mat, and the rest are merged all the same.";
+  "A desk that shows how Spanrail turns an LLM call into a stored trace. A batch of three events, small paper parcels, waits in a bin on the left. They pass a gate with a key slot, where a receipt slip pops out at once: the API answers before any work is done. The parcels go into a numbered tray, and one lamp for each waiting event lights on the queue panel. A press takes them one at a time and merges the create and update parcels of one call into a single layer. The result is filed in a tray, and a screen on the right builds the trace tree from what is filed. A second batch arrives with its update first and a resend of an event already seen; the resend is turned away onto a mat, and the rest are merged all the same.";
 
 /** The intake desk: how a batch of events becomes stored observations. Pure server markup around one client layer. */
 export function IntakeArt() {

@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
-# End-to-end check of the gateway against a real running Tracewell stack.
+# End-to-end check of the gateway against a real running Spanrail stack.
 #
 # Prerequisites (see gateway/README.md):
-#   - Tracewell web + worker + Postgres + Redis running
+#   - Spanrail web + worker + Postgres + Redis running
 #   - go on PATH
-#   - environment: TRACEWELL_PUBLIC_KEY, TRACEWELL_SECRET_KEY
-#   - optional: TRACEWELL_BASE_URL (default http://localhost:3000)
-#               PSQL (command that runs psql against Tracewell's database)
+#   - environment: SPANRAIL_PUBLIC_KEY, SPANRAIL_SECRET_KEY
+#   - optional: SPANRAIL_BASE_URL (default http://localhost:3000)
+#               PSQL (command that runs psql against Spanrail's database)
 #
 # It starts a fake OpenAI-compatible upstream (no paid API key) and the gateway, sends
-# requests through the gateway, then asserts on what Tracewell stored in Postgres.
+# requests through the gateway, then asserts on what Spanrail stored in Postgres.
 set -euo pipefail
 
-: "${TRACEWELL_PUBLIC_KEY:?set TRACEWELL_PUBLIC_KEY}"
-: "${TRACEWELL_SECRET_KEY:?set TRACEWELL_SECRET_KEY}"
-TW="${TRACEWELL_BASE_URL:-http://localhost:3000}"
-PSQL="${PSQL:-docker compose -p tracewell-e2e -f ../docker-compose.yml exec -T postgres psql -U tracewell -d tracewell -t -A}"
+: "${SPANRAIL_PUBLIC_KEY:?set SPANRAIL_PUBLIC_KEY}"
+: "${SPANRAIL_SECRET_KEY:?set SPANRAIL_SECRET_KEY}"
+TW="${SPANRAIL_BASE_URL:-http://localhost:3000}"
+PSQL="${PSQL:-docker compose -p spanrail-e2e -f ../docker-compose.yml exec -T postgres psql -U spanrail -d spanrail -t -A}"
 GW_PORT="${GW_PORT:-18080}"
 UP_PORT="${UP_PORT:-19000}"
 RUN="e2e-$(date +%s)"   # tags every model name so reruns do not collide
@@ -31,7 +31,7 @@ trap cleanup EXIT
 
 ./bin/fakeupstream -addr "127.0.0.1:$UP_PORT" -latency 40ms -chunk-delay 10ms >/dev/null 2>&1 & pids+=($!)
 UPSTREAM_URL="http://localhost:$UP_PORT" LISTEN_ADDR="127.0.0.1:$GW_PORT" \
-TRACEWELL_BASE_URL="$TW" FLUSH_INTERVAL=300ms CAPTURE_HEADERS=true \
+SPANRAIL_BASE_URL="$TW" FLUSH_INTERVAL=300ms CAPTURE_HEADERS=true \
   ./bin/gateway >/dev/null 2>&1 & pids+=($!)
 for _ in $(seq 1 30); do curl -sf "localhost:$GW_PORT/healthz" >/dev/null && break; sleep 0.2; done
 
@@ -44,7 +44,7 @@ call() { curl -s -o /dev/null -H 'Authorization: Bearer sk-PROVIDER-KEY-must-not
 
 # An existing trace the gateway should attach to.
 NOW=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-curl -s -o /dev/null -u "$TRACEWELL_PUBLIC_KEY:$TRACEWELL_SECRET_KEY" -H 'content-type: application/json' "$TW/api/public/ingestion" \
+curl -s -o /dev/null -u "$SPANRAIL_PUBLIC_KEY:$SPANRAIL_SECRET_KEY" -H 'content-type: application/json' "$TW/api/public/ingestion" \
   -d "{\"batch\":[{\"id\":\"$RUN-ev\",\"timestamp\":\"$NOW\",\"type\":\"trace-create\",\"body\":{\"id\":\"$RUN-trace\",\"traceId\":\"$RUN-trace\",\"parentObservationId\":null,\"startTime\":\"$NOW\",\"name\":\"e2e-existing\"}}]}"
 
 U="localhost:$GW_PORT/v1/chat/completions"
@@ -52,7 +52,7 @@ call "$U" -d "{\"model\":\"$RUN-fresh\"}"                                       
 call "$U" -d "{\"model\":\"$RUN-reused\"}"                                                 # second call: keep-alive reuse
 call "$U" -d "{\"model\":\"$RUN-stream\",\"stream\":true,\"stream_options\":{\"include_usage\":true}}"
 call "$U" -d "{\"model\":\"$RUN-nousage\",\"stream\":true}"
-call "$U" -H "X-Tracewell-Trace-Id: $RUN-trace" -d "{\"model\":\"$RUN-attached\"}"
+call "$U" -H "X-Spanrail-Trace-Id: $RUN-trace" -d "{\"model\":\"$RUN-attached\"}"
 call "$U" -H 'X-Fake-Status: 500' -d "{\"model\":\"$RUN-err\"}"
 
 # Wait for the gateway to flush and the worker to process.

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/fakeupstream"
+	"github.com/veeky-ai/spanrail-gateway/internal/fakeupstream"
 )
 
 func main() {

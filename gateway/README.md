@@ -1,17 +1,17 @@
-# tracewell-gateway
+# spanrail-gateway
 
 A small Go reverse proxy that sits in front of an OpenAI-compatible LLM API. It forwards every
-request unchanged and reports each call to [Tracewell](../README.md) as a **generation**, including
+request unchanged and reports each call to [Spanrail](../README.md) as a **generation**, including
 where the time went on the network: DNS, TCP connect, TLS handshake and time to first byte.
 
 ```
-your app --> tracewell-gateway --> LLM provider
+your app --> spanrail-gateway --> LLM provider
                    |
-                   +--(async, batched)--> Tracewell  POST /api/public/ingestion
+                   +--(async, batched)--> Spanrail  POST /api/public/ingestion
 ```
 
 * Standard library plus one dependency (`prometheus/client_golang`).
-* Never blocks a request to report it: a bounded queue drops (and counts) events if Tracewell is slow.
+* Never blocks a request to report it: a bounded queue drops (and counts) events if Spanrail is slow.
 * Never forwards or reports your provider key. Request/response bodies are **not** reported unless you turn that on.
 
 See [RESULTS.md](./RESULTS.md) for what was measured and [docs/LEARNING.md](./docs/LEARNING.md)
@@ -19,19 +19,19 @@ for a walkthrough of the code.
 
 ## Quick start
 
-You need a running Tracewell (web + worker) and a project key pair (`npm run db:seed` prints one).
+You need a running Spanrail (web + worker) and a project key pair (`npm run db:seed` prints one).
 
 ```bash
 # native
 cd gateway
 UPSTREAM_URL=https://api.openai.com \
-TRACEWELL_BASE_URL=http://localhost:3000 \
-TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-... \
+SPANRAIL_BASE_URL=http://localhost:3000 \
+SPANRAIL_PUBLIC_KEY=pk-... SPANRAIL_SECRET_KEY=sk-... \
 go run ./cmd/gateway
 
 # or Docker (from the repo root; the gateway is opt-in via the `gateway` compose profile and is
 # published on 127.0.0.1:8080 only)
-export TRACEWELL_PUBLIC_KEY=pk-... TRACEWELL_SECRET_KEY=sk-...
+export SPANRAIL_PUBLIC_KEY=pk-... SPANRAIL_SECRET_KEY=sk-...
 docker compose --profile gateway up -d --build gateway
 # with the production overlay:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile gateway up -d --build gateway
@@ -53,13 +53,13 @@ Set `UPSTREAM_URL` without `/v1` when the client's base URL already ends in `/v1
 ```bash
 curl localhost:8080/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
-  -H "X-Tracewell-Trace-Id: my-existing-trace" \
-  -H "X-Tracewell-Parent-Observation-Id: my-span" \
+  -H "X-Spanrail-Trace-Id: my-existing-trace" \
+  -H "X-Spanrail-Parent-Observation-Id: my-span" \
   -d '{"model":"gpt-4o-mini","messages":[]}'
 ```
 
 Without these headers each call starts its own trace. Ids must match `[A-Za-z0-9_.:-]{1,128}`;
-anything else is ignored (the call still succeeds). `X-Tracewell-*` headers are removed before
+anything else is ignored (the call still succeeds). `X-Spanrail-*` headers are removed before
 the request goes to the provider.
 
 ### Try it without a paid key
@@ -92,7 +92,7 @@ unknown: it is omitted, never `0`. The gateway has no price table, so it never s
 |---|---|
 | `GET /healthz` | process is alive (always 200) |
 | `GET /readyz` | 200 normally, 503 while shutting down |
-| `GET /metrics` | Prometheus metrics (`tracewell_gateway_*`): requests by status, latency, per-phase histograms, queue depth, dropped events, flush failures |
+| `GET /metrics` | Prometheus metrics (`spanrail_gateway_*`): requests by status, latency, per-phase histograms, queue depth, dropped events, flush failures |
 | anything else | proxied to the upstream |
 
 By default these three share the proxy port, which means a `GET /healthz`, `/readyz` or `/metrics` aimed
@@ -113,15 +113,15 @@ All settings are environment variables. The gateway refuses to start with a clea
 | `OPS_ADDR` | unset | separate listener for `/healthz`, `/readyz`, `/metrics` (plain HTTP); unset = same port as the proxy |
 | `DRAIN_DELAY` | `0` | after SIGTERM keep serving this long with `/readyz` = 503 so a load balancer notices |
 | `TLS_CERT_FILE` / `TLS_KEY_FILE` | unset | serve HTTPS (both or neither); TLS 1.2+ |
-| `REPORT_ENABLED` | `true` | `false` = plain proxy, no Tracewell keys needed |
-| `TRACEWELL_BASE_URL` | `http://localhost:3000` | Tracewell web/API |
-| `TRACEWELL_PUBLIC_KEY` / `TRACEWELL_SECRET_KEY` | required when reporting | project API keys (the secret is never printed or logged) |
+| `REPORT_ENABLED` | `true` | `false` = plain proxy, no Spanrail keys needed |
+| `SPANRAIL_BASE_URL` | `http://localhost:3000` | Spanrail web/API |
+| `SPANRAIL_PUBLIC_KEY` / `SPANRAIL_SECRET_KEY` | required when reporting | project API keys (the secret is never printed or logged) |
 | `BATCH_SIZE` | `50` (max 500) | events per ingestion request (a call is 2-3 events) |
 | `FLUSH_INTERVAL` | `2s` | send a partial batch at least this often |
 | `QUEUE_SIZE` | `1000` (max 100000) | calls buffered; beyond this new ones are dropped and counted |
 | `REPORT_WORKERS` | `2` | background senders |
 | `REPORT_MAX_ATTEMPTS` | `5` | tries per batch (exponential backoff with full jitter) |
-| `REPORT_TIMEOUT` | `10s` | per HTTP attempt to Tracewell |
+| `REPORT_TIMEOUT` | `10s` | per HTTP attempt to Spanrail |
 | `PEEK_BYTES` | `65536` (max 1 MiB) | request-body prefix read to find `model` |
 | `PEEK_TIMEOUT` | `10s` | **stall** timeout for a POST body: the request fails (408) if no bytes arrive for this long. A slow but steadily progressing upload is not affected |
 | `PARSE_MAX_BYTES` | `1048576` (max 16 MiB) | largest response held in memory to read `usage` from |
@@ -135,7 +135,7 @@ All settings are environment variables. The gateway refuses to start with a clea
 ```bash
 cd gateway
 gofmt -l . && go vet ./... && go test -race ./...
-bash scripts/e2e.sh      # needs a running Tracewell stack; see the script header
+bash scripts/e2e.sh      # needs a running Spanrail stack; see the script header
 bash scripts/bench.sh    # overhead and throughput measurement
 ```
 
@@ -155,15 +155,15 @@ bash scripts/bench.sh    # overhead and throughput measurement
 * **Responses that cannot be read.** Brotli/zstd-encoded or non-JSON responses, and JSON larger than
   `PARSE_MAX_BYTES`, have unknown usage (a large embeddings batch can exceed 1 MiB; raise the limit,
   accepting that each in-flight response of that size is held in memory). Only gzip is decoded.
-* **No cost.** There is no price table; Tracewell shows usage but no cost for these calls.
-* **The gateway does not authenticate callers, and it holds your Tracewell secret key.** Anyone who can
+* **No cost.** There is no price table; Spanrail shows usage but no cost for these calls.
+* **The gateway does not authenticate callers, and it holds your Spanrail secret key.** Anyone who can
   reach it can (a) send requests through to the upstream with whatever key they supply, (b) write
-  arbitrary generations into your Tracewell project, and (c) attach them to any trace whose id they know via
-  `X-Tracewell-Trace-Id`. Keep it on a private network or put authentication in front. The compose
+  arbitrary generations into your Spanrail project, and (c) attach them to any trace whose id they know via
+  `X-Spanrail-Trace-Id`. Keep it on a private network or put authentication in front. The compose
   file binds it to `127.0.0.1` for this reason.
 * **Plain HTTP carries your provider keys.** Clients send `Authorization: Bearer ...` through the
   gateway, so use TLS (`TLS_CERT_FILE`/`TLS_KEY_FILE`, or a terminator in front) for any hop that
-  leaves a trusted network. `UPSTREAM_URL` and `TRACEWELL_BASE_URL` also accept `http://`; the compose
+  leaves a trusted network. `UPSTREAM_URL` and `SPANRAIL_BASE_URL` also accept `http://`; the compose
   defaults use it only inside the compose network or to the host.
 * **`Accept-Encoding` is rewritten.** If the client accepts gzip, the gateway asks the provider for
   `gzip` (clients like browsers and Node also offer br/zstd, which it cannot read usage from). A client
@@ -178,9 +178,9 @@ bash scripts/bench.sh    # overhead and throughput measurement
   container environment, provider traffic (with your keys) goes through that proxy.
 * **Go version.** Build with Go 1.27.2 or newer. Earlier 1.27.x releases have standard-library
   vulnerabilities that `govulncheck` reports for this code; `go.mod` requires 1.27.2.
-* **One upstream and one Tracewell project per instance.** Run several instances for several.
+* **One upstream and one Spanrail project per instance.** Run several instances for several.
 * **At-most-once, in memory.** The report queue is not persisted. A crash or `kill -9` loses queued
-  events, and a batch Tracewell rejects or cannot accept after all retries is lost (counted in
+  events, and a batch Spanrail rejects or cannot accept after all retries is lost (counted in
   `report_flush_failures_total`).
 * **TTFB definition.** It starts at the beginning of the upstream round trip, so it includes
   DNS/connect/TLS on a new connection. Compare calls with the same `connReused` value.

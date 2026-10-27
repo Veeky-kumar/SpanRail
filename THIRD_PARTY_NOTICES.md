@@ -1,6 +1,6 @@
 # Third-party notices
 
-Tracewell is released under the MIT licence (see `LICENSE`). It includes or depends on the following
+Spanrail is released under the MIT licence (see `LICENSE`). It includes or depends on the following
 third-party work, each under its own licence.
 
 ## Included in the source tree

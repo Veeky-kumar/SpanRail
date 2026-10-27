@@ -12,7 +12,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   return (
     <form action={formAction}>
       <h1 className="text-2xl font-semibold tracking-[-0.02em]">Sign in</h1>
-      <p className="mt-1 text-sm text-muted">Welcome back. Use the email and password for your Tracewell account.</p>
+      <p className="mt-1 text-sm text-muted">Welcome back. Use the email and password for your Spanrail account.</p>
 
       <input type="hidden" name="callbackUrl" value={callbackUrl} />
 

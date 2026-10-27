@@ -3,18 +3,18 @@
 // which fails) and an LLM generation, nested exactly the way a real agent trace would
 // nest them, so the dashboard's tree-building and waterfall view have something real to
 // render.
-import { Tracewell } from "../sdk/index";
+import { Spanrail } from "../sdk/index";
 
 async function main() {
-  const publicKey = process.env.TRACEWELL_PUBLIC_KEY;
-  const secretKey = process.env.TRACEWELL_SECRET_KEY;
+  const publicKey = process.env.SPANRAIL_PUBLIC_KEY;
+  const secretKey = process.env.SPANRAIL_SECRET_KEY;
   if (!publicKey || !secretKey) {
-    throw new Error("Set TRACEWELL_PUBLIC_KEY and TRACEWELL_SECRET_KEY (printed by `npm run db:seed`)");
+    throw new Error("Set SPANRAIL_PUBLIC_KEY and SPANRAIL_SECRET_KEY (printed by `npm run db:seed`)");
   }
 
-  const tracewell = new Tracewell({ publicKey, secretKey, baseUrl: process.env.TRACEWELL_BASE_URL ?? "http://localhost:3000" });
+  const spanrail = new Spanrail({ publicKey, secretKey, baseUrl: process.env.SPANRAIL_BASE_URL ?? "http://localhost:3000" });
 
-  const trace = tracewell.trace({
+  const trace = spanrail.trace({
     name: "research-agent-run",
     userId: "user_42",
     sessionId: "session_7",
@@ -51,7 +51,7 @@ async function main() {
 
   trace.score({ name: "user_feedback", value: 1, comment: "Correctly flagged the carrier timeout" });
 
-  await tracewell.shutdown();
+  await spanrail.shutdown();
   console.log("Trace sent:", trace.id);
   console.log(`View it at http://localhost:3000/projects/<projectId>/traces/${trace.id}`);
 }

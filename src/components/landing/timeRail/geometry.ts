@@ -260,7 +260,7 @@ export const DIAL_ART = {
   label: topMatrix([DX, DY + 7.2], DIAL_TOP, P, "x"),
 };
 
-// ---------------------------------------------------------------- the logger box: Tracewell
+// ---------------------------------------------------------------- the logger box: Spanrail
 const SLOT_PLANS: Plan[] = [0, 1, 2].map((row) => ({ x: LOGGER.x + 6, y: LOGGER.y + 20 + row * 4.2, w: 24, d: 2, r: 1 }));
 const LOGGER_PLATE: Plan = { x: LOGGER.x + 6, y: LOGGER.y + 4, w: 26, d: 8, r: 1.5 };
 

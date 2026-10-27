@@ -18,9 +18,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/proxy"
 )
 
 type sink struct {
@@ -315,7 +315,7 @@ func TestTimingsAndMetricsAreRecorded(t *testing.T) {
 		rec := httptest.NewRecorder()
 		m.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
 		body = rec.Body.String()
-		if strings.Contains(body, `tracewell_gateway_requests_total{code="200"} 2`) {
+		if strings.Contains(body, `spanrail_gateway_requests_total{code="200"} 2`) {
 			return
 		}
 	}
@@ -327,9 +327,9 @@ func TestTraceHeadersAttachToExistingTraceAndAreNotForwarded(t *testing.T) {
 	gw, sk := setup(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }), nil)
 
 	post(t, gw.URL+"/v1/x", `{}`, map[string]string{
-		"X-Tracewell-Trace-Id":              "trace-123",
-		"X-Tracewell-Parent-Observation-Id": "span_9.a:b",
-		"X-Tracewell-Anything":              "x",
+		"X-Spanrail-Trace-Id":              "trace-123",
+		"X-Spanrail-Parent-Observation-Id": "span_9.a:b",
+		"X-Spanrail-Anything":              "x",
 	}).Body.Close()
 
 	o := sk.next(t)
@@ -337,7 +337,7 @@ func TestTraceHeadersAttachToExistingTraceAndAreNotForwarded(t *testing.T) {
 		t.Errorf("trace=%q parent=%q", o.TraceID, o.ParentObservationID)
 	}
 	for k := range seen {
-		if strings.HasPrefix(strings.ToLower(k), "x-tracewell-") {
+		if strings.HasPrefix(strings.ToLower(k), "x-spanrail-") {
 			t.Errorf("internal header %q leaked to the upstream provider", k)
 		}
 	}
@@ -363,10 +363,10 @@ func TestInvalidTraceHeadersAreIgnored(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			hdr := map[string]string{}
 			if tt.trace != "" {
-				hdr["X-Tracewell-Trace-Id"] = tt.trace
+				hdr["X-Spanrail-Trace-Id"] = tt.trace
 			}
 			if tt.parent != "" {
-				hdr["X-Tracewell-Parent-Observation-Id"] = tt.parent
+				hdr["X-Spanrail-Parent-Observation-Id"] = tt.parent
 			}
 			post(t, gw.URL+"/v1/x", `{}`, hdr).Body.Close()
 			o := sk.next(t)
@@ -561,7 +561,7 @@ func TestReportedPathIsCapped(t *testing.T) {
 	post(t, gw.URL+"/v1/"+strings.Repeat("a", 6000), `{}`, nil).Body.Close()
 	o := sk.next(t)
 	if len(o.Path) > 256 || len(o.Name) > 80 {
-		t.Errorf("path %d bytes, name %d bytes; a caller-controlled path must not bloat the events sent to Tracewell", len(o.Path), len(o.Name))
+		t.Errorf("path %d bytes, name %d bytes; a caller-controlled path must not bloat the events sent to Spanrail", len(o.Path), len(o.Name))
 	}
 }
 

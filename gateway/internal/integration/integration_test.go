@@ -1,5 +1,5 @@
 // Package integration wires the real gateway pieces together in-process (proxy, observe,
-// reporter, HTTP sender) between a fake LLM upstream and a fake Tracewell, to prove the
+// reporter, HTTP sender) between a fake LLM upstream and a fake Spanrail, to prove the
 // whole path: a client call becomes correctly linked ingestion events.
 package integration
 
@@ -16,22 +16,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/fakeupstream"
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
-	"github.com/veeky-ai/tracewell-gateway/internal/proxy"
-	"github.com/veeky-ai/tracewell-gateway/internal/report"
+	"github.com/veeky-ai/spanrail-gateway/internal/fakeupstream"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/proxy"
+	"github.com/veeky-ai/spanrail-gateway/internal/report"
 )
 
-type fakeTracewell struct {
+type fakeSpanrail struct {
 	srv  *httptest.Server
 	mu   sync.Mutex
 	evs  []report.Event
 	auth []string
 }
 
-func newFakeTracewell(t *testing.T) *fakeTracewell {
-	f := &fakeTracewell{}
+func newFakeSpanrail(t *testing.T) *fakeSpanrail {
+	f := &fakeSpanrail{}
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct{ Batch []report.Event }
 		_ = json.NewDecoder(r.Body).Decode(&body)
@@ -46,7 +46,7 @@ func newFakeTracewell(t *testing.T) *fakeTracewell {
 	return f
 }
 
-func (f *fakeTracewell) events() []report.Event {
+func (f *fakeSpanrail) events() []report.Event {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]report.Event(nil), f.evs...)
@@ -55,7 +55,7 @@ func (f *fakeTracewell) events() []report.Event {
 type stack struct {
 	gw       *httptest.Server
 	reporter *report.Reporter
-	tw       *fakeTracewell
+	tw       *fakeSpanrail
 	metrics  *metrics.Metrics
 }
 
@@ -63,7 +63,7 @@ func newStack(t *testing.T, up fakeupstream.Options) *stack {
 	t.Helper()
 	us := httptest.NewServer(fakeupstream.Handler(up))
 	t.Cleanup(us.Close)
-	tw := newFakeTracewell(t)
+	tw := newFakeSpanrail(t)
 	m := metrics.New()
 
 	twURL, _ := url.Parse(tw.srv.URL)
@@ -126,7 +126,7 @@ func TestNewTraceEndToEnd(t *testing.T) {
 
 	evs := s.tw.events()
 	if len(evs) != 3 {
-		t.Fatalf("Tracewell received %d events, want 3: %+v", len(evs), evs)
+		t.Fatalf("Spanrail received %d events, want 3: %+v", len(evs), evs)
 	}
 	root := find(evs, "trace-create")[0].Body
 	gc := find(evs, "generation-create")[0].Body
@@ -147,16 +147,16 @@ func TestNewTraceEndToEnd(t *testing.T) {
 		t.Errorf("ttfb = %v ms, want >= the 30ms upstream latency", tm["ttfb"])
 	}
 
-	// The auth header Tracewell saw is the gateway's own key pair, not the client's provider key.
+	// The auth header Spanrail saw is the gateway's own key pair, not the client's provider key.
 	wantAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("pk-int:sk-int"))
 	for _, a := range s.tw.auth {
 		if a != wantAuth {
-			t.Errorf("Authorization to Tracewell = %q", a)
+			t.Errorf("Authorization to Spanrail = %q", a)
 		}
 	}
 }
 
-func TestProviderKeyNeverReachesTracewell(t *testing.T) {
+func TestProviderKeyNeverReachesSpanrail(t *testing.T) {
 	s := newStack(t, fakeupstream.Options{})
 	resp := s.call(t, `{"model":"m"}`, nil)
 	resp.Body.Close()
@@ -170,7 +170,7 @@ func TestProviderKeyNeverReachesTracewell(t *testing.T) {
 func TestAttachToExistingTrace(t *testing.T) {
 	s := newStack(t, fakeupstream.Options{})
 	resp := s.call(t, `{"model":"m"}`, map[string]string{
-		"X-Tracewell-Trace-Id": "existing-trace", "X-Tracewell-Parent-Observation-Id": "existing-span",
+		"X-Spanrail-Trace-Id": "existing-trace", "X-Spanrail-Parent-Observation-Id": "existing-span",
 	})
 	resp.Body.Close()
 	s.closeAndWait(t)

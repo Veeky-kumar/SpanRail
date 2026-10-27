@@ -5,7 +5,7 @@ package proxy
 import (
 	"context"
 	"errors"
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
 	"log"
 	"net"
 	"net/http"
@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
+	"github.com/veeky-ai/spanrail-gateway/internal/nettrace"
 )
 
 // maxIdleConnsPerHost bounds the keep-alive pool to the (single) upstream host.
@@ -95,7 +95,7 @@ func preferGzip(h http.Header) {
 
 // ControlHeaderPrefix marks headers meant for the gateway itself (trace linking). They are
 // removed before forwarding so the LLM provider never sees them.
-const ControlHeaderPrefix = "x-tracewell-"
+const ControlHeaderPrefix = "x-spanrail-"
 
 func stripControlHeaders(h http.Header) {
 	for name := range h {

@@ -1,4 +1,4 @@
-// Package redact turns HTTP headers into a map that is safe to send to Tracewell.
+// Package redact turns HTTP headers into a map that is safe to send to Spanrail.
 package redact
 
 import (

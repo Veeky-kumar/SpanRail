@@ -24,7 +24,7 @@ const GATEWAY_FACTS = [
   },
   {
     name: "It never makes your call wait",
-    body: "Reports go through a bounded queue and are sent in the background. If Tracewell is slow and the queue fills, events are dropped and counted. Your calls are not.",
+    body: "Reports go through a bounded queue and are sent in the background. If Spanrail is slow and the queue fills, events are dropped and counted. Your calls are not.",
   },
   {
     name: "Your key stays yours",
@@ -49,7 +49,7 @@ const FAQ = [
     a: "Only the base URL of an OpenAI-compatible client. Your provider key stays in the client and passes straight through the gateway.",
   },
   {
-    q: "What happens if Tracewell is down or slow?",
+    q: "What happens if Spanrail is down or slow?",
     a: "Your calls are not affected. The gateway reports in the background and retries failed batches with backoff. If its queue fills up it drops events and counts them.",
   },
   {
@@ -62,7 +62,7 @@ const FAQ = [
   },
   {
     q: "Where does my data live?",
-    a: "In your own Postgres. Tracewell is self-hosted, and the gateway does not store request or response bodies unless you enable it.",
+    a: "In your own Postgres. Spanrail is self-hosted, and the gateway does not store request or response bodies unless you enable it.",
   },
   {
     q: "Is it ready for production?",
@@ -87,7 +87,7 @@ client = OpenAI(
 
 const ATTACH = `curl localhost:8080/v1/chat/completions \\
   -H "Authorization: Bearer $OPENAI_API_KEY" \\
-  -H "X-Tracewell-Trace-Id: my-existing-trace" \\
+  -H "X-Spanrail-Trace-Id: my-existing-trace" \\
   -d '{"model":"...","messages":[]}'`;
 
 function Code({ children, label }: { children: string; label: string }) {
@@ -115,7 +115,7 @@ export function Landing() {
   return (
     <div className="min-h-screen">
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-        <Link href="/" aria-label="Tracewell home">
+        <Link href="/" aria-label="Spanrail home">
           <Logo />
         </Link>
         <nav aria-label="Account" className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export function Landing() {
               See where every LLM call spends its time.
             </h1>
             <p className="mt-6 max-w-2xl text-lg text-muted">
-              Tracewell is a self-hosted place for traces, evaluations and prompts. Its Go gateway measures DNS,
+              Spanrail is a self-hosted place for traces, evaluations and prompts. Its Go gateway measures DNS,
               connect, TLS and first byte for every call that passes through it, and draws each one to scale.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -188,7 +188,7 @@ export function Landing() {
             </div>
             <p className="mt-6 max-w-2xl text-sm text-muted">
               To group several calls under a trace you already have, send its id in an{" "}
-              <code className="font-mono text-xs text-ink">X-Tracewell-Trace-Id</code> header. The gateway attaches the
+              <code className="font-mono text-xs text-ink">X-Spanrail-Trace-Id</code> header. The gateway attaches the
               call to that trace instead of starting a new one.
             </p>
             <div className="mt-4 max-w-2xl">
@@ -215,7 +215,7 @@ export function Landing() {
           <section id="gateway" aria-labelledby="gateway-title" className="scroll-mt-20 py-16">
             <Heading
               id="gateway-title"
-              lead="A small proxy written in Go, using the standard library and one metrics dependency. It forwards your request unchanged and reports the call to Tracewell on the side."
+              lead="A small proxy written in Go, using the standard library and one metrics dependency. It forwards your request unchanged and reports the call to Spanrail on the side."
             >
               The gateway
             </Heading>
@@ -269,7 +269,7 @@ export function Landing() {
               <div>
                 <Heading id="run-title">Run it yourself</Heading>
                 <p className="mt-3 max-w-md text-sm text-muted">
-                  Tracewell needs Docker. Postgres and Redis come with it, and your traces stay on your own
+                  Spanrail needs Docker. Postgres and Redis come with it, and your traces stay on your own
                   infrastructure.
                 </p>
                 <p className="mt-3 max-w-md text-sm text-muted">

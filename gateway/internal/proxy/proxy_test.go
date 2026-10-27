@@ -2,7 +2,7 @@ package proxy
 
 import (
 	"errors"
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
 	"io"
 	"net"
 	"net/http"
@@ -164,15 +164,15 @@ func TestHopByHopHeadersNotForwarded(t *testing.T) {
 	}
 }
 
-func TestTracewellControlHeadersAreStripped(t *testing.T) {
+func TestSpanrailControlHeadersAreStripped(t *testing.T) {
 	var seen http.Header
 	up := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { seen = r.Header.Clone() }))
 	defer up.Close()
 	px := newProxy(t, up.URL, 5*time.Second)
 
 	req, _ := http.NewRequest(http.MethodGet, px.URL, nil)
-	req.Header.Set("X-Tracewell-Trace-Id", "t")
-	req.Header.Set("x-tracewell-custom", "c")
+	req.Header.Set("X-Spanrail-Trace-Id", "t")
+	req.Header.Set("x-spanrail-custom", "c")
 	req.Header.Set("X-Other", "kept")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -180,7 +180,7 @@ func TestTracewellControlHeadersAreStripped(t *testing.T) {
 	}
 	resp.Body.Close()
 	for k := range seen {
-		if strings.HasPrefix(strings.ToLower(k), "x-tracewell-") {
+		if strings.HasPrefix(strings.ToLower(k), "x-spanrail-") {
 			t.Errorf("%s forwarded to upstream", k)
 		}
 	}

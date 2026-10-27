@@ -1,18 +1,18 @@
 // break-ui pass: realistic worst-case data sent through the real SDK boundary (not
 // hand-edited DB rows), covering long/short/unicode names, a long model id, a missing
 // model, a long status message, deep/large JSON payloads, and score edge cases.
-import { Tracewell } from "../sdk/index";
+import { Spanrail } from "../sdk/index";
 
 async function main() {
-  const publicKey = process.env.TRACEWELL_PUBLIC_KEY;
-  const secretKey = process.env.TRACEWELL_SECRET_KEY;
+  const publicKey = process.env.SPANRAIL_PUBLIC_KEY;
+  const secretKey = process.env.SPANRAIL_SECRET_KEY;
   if (!publicKey || !secretKey) {
-    throw new Error("Set TRACEWELL_PUBLIC_KEY and TRACEWELL_SECRET_KEY");
+    throw new Error("Set SPANRAIL_PUBLIC_KEY and SPANRAIL_SECRET_KEY");
   }
 
-  const tracewell = new Tracewell({ publicKey, secretKey, baseUrl: "http://localhost:3000" });
+  const spanrail = new Spanrail({ publicKey, secretKey, baseUrl: "http://localhost:3000" });
 
-  const trace = tracewell.trace({
+  const trace = spanrail.trace({
     name:
       "Investigate why the Q3-2026-northwind-industries-holdings shipment consolidation webhook silently dropped 14,000 line items during the midnight batch reconciliation job and draft a remediation plan for the on-call engineer",
     userId: "bartholomew.fitzgerald@northwind-industries-holdings.example.com",
@@ -58,7 +58,7 @@ async function main() {
   trace.score({ name: "confidence", value: 0 });
   trace.score({ name: "empty-score" });
 
-  await tracewell.shutdown();
+  await spanrail.shutdown();
   console.log("Worst-case trace sent:", trace.id);
 }
 

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/capture"
+	"github.com/veeky-ai/spanrail-gateway/internal/capture"
 )
 
 // maxDecompressed bounds how much a gzip response may expand while we read its usage, so a

@@ -10,7 +10,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/nettrace"
+	"github.com/veeky-ai/spanrail-gateway/internal/nettrace"
 )
 
 // Metrics owns a private registry (not the global default), so tests can create many
@@ -36,7 +36,7 @@ type Metrics struct {
 var buckets = prometheus.ExponentialBuckets(0.001, 2, 16)
 
 func New() *Metrics {
-	const ns = "tracewell_gateway_"
+	const ns = "spanrail_gateway_"
 	hist := func(name, help string) prometheus.Histogram {
 		return prometheus.NewHistogram(prometheus.HistogramOpts{Name: ns + name, Help: help, Buckets: buckets})
 	}
@@ -57,10 +57,10 @@ func New() *Metrics {
 			Name: ns + "report_dropped_total", Help: "Observations dropped because the report queue was full or closed.",
 		}),
 		FlushFailures: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: ns + "report_flush_failures_total", Help: "Event batches that could not be delivered to Tracewell after all retries.",
+			Name: ns + "report_flush_failures_total", Help: "Event batches that could not be delivered to Spanrail after all retries.",
 		}),
 		EventsSent: prometheus.NewCounter(prometheus.CounterOpts{
-			Name: ns + "report_events_sent_total", Help: "Events accepted by Tracewell.",
+			Name: ns + "report_events_sent_total", Help: "Events accepted by Spanrail.",
 		}),
 	}
 	m.reg.MustRegister(m.requests, m.connections, m.duration, m.dns, m.connect, m.tls, m.ttfb,
@@ -71,7 +71,7 @@ func New() *Metrics {
 // SetQueueDepth registers the queue-depth gauge. f is called on every scrape.
 func (m *Metrics) SetQueueDepth(f func() float64) {
 	m.reg.MustRegister(prometheus.NewGaugeFunc(prometheus.GaugeOpts{
-		Name: "tracewell_gateway_report_queue_depth", Help: "Observations waiting to be reported.",
+		Name: "spanrail_gateway_report_queue_depth", Help: "Observations waiting to be reported.",
 	}, f))
 }
 

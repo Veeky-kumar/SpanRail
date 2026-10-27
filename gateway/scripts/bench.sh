@@ -4,7 +4,7 @@
 # Method: a closed-loop load generator (cmd/bench) sends the same POST requests
 #   (a) directly to a fake OpenAI-compatible upstream,
 #   (b) through the gateway with reporting disabled (pure proxy + observation overhead),
-#   (c) through the gateway with reporting on, to a fast fake Tracewell sink.
+#   (c) through the gateway with reporting on, to a fast fake Spanrail sink.
 # Everything runs on one machine over loopback, so numbers show the gateway's own overhead,
 # not network cost, and the load generator competes with the servers for CPU.
 # Each configuration is run REPS times; the script prints every run so nothing is hidden.
@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.."
 REPS="${REPS:-3}"; EXE="$(go env GOEXE)"
 go build -o "bin/gateway$EXE" ./cmd/gateway
 go build -o "bin/fakeupstream$EXE" ./cmd/fakeupstream
-go build -o "bin/faketracewell$EXE" ./cmd/faketracewell
+go build -o "bin/fakespanrail$EXE" ./cmd/fakespanrail
 go build -o "bin/bench$EXE" ./cmd/bench
 
 pids=()
@@ -27,7 +27,7 @@ cleanup() { for p in "${pids[@]:-}"; do kill "$p" 2>/dev/null || true; done; }
 trap cleanup EXIT
 
 UP=127.0.0.1:9100; GW=127.0.0.1:9101; TW=127.0.0.1:9102
-"./bin/faketracewell$EXE" -addr "$TW" >/dev/null 2>&1 & pids+=($!)
+"./bin/fakespanrail$EXE" -addr "$TW" >/dev/null 2>&1 & pids+=($!)
 
 start_gateway() { # start_gateway [env...]; sets GWPID
   env UPSTREAM_URL="http://$UP" LISTEN_ADDR="$GW" "$@" "./bin/gateway$EXE" >/dev/null 2>&1 &
@@ -57,14 +57,14 @@ suite() { # suite <upstream latency> <n at c=1> <n at c=32>
   run_set "gateway(no-report)" "http://$GW/v1/chat/completions" "$2" "$3"
   stop_gateway
 
-  echo "### (c) via gateway, reporting to a fast fake Tracewell"
+  echo "### (c) via gateway, reporting to a fast fake Spanrail"
   curl -s "http://$TW/stats" >/dev/null
-  start_gateway TRACEWELL_BASE_URL="http://$TW" TRACEWELL_PUBLIC_KEY=pk TRACEWELL_SECRET_KEY=sk FLUSH_INTERVAL=200ms QUEUE_SIZE=100000
+  start_gateway SPANRAIL_BASE_URL="http://$TW" SPANRAIL_PUBLIC_KEY=pk SPANRAIL_SECRET_KEY=sk FLUSH_INTERVAL=200ms QUEUE_SIZE=100000
   run_set "gateway(report)" "http://$GW/v1/chat/completions" "$2" "$3"
   sleep 1
   echo "gateway reporter metrics after (c):"
-  curl -s "http://$GW/metrics" | grep -E "^tracewell_gateway_report_(events_sent|dropped|flush_failures)_total"
-  echo "fake tracewell received: $(curl -s "http://$TW/stats")"
+  curl -s "http://$GW/metrics" | grep -E "^spanrail_gateway_report_(events_sent|dropped|flush_failures)_total"
+  echo "fake spanrail received: $(curl -s "http://$TW/stats")"
   stop_gateway
   kill "$up" 2>/dev/null || true; wait "$up" 2>/dev/null || true
 }

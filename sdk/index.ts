@@ -16,7 +16,7 @@ interface IngestEventEnvelope {
   body: Record<string, unknown>;
 }
 
-export interface TracewellOptions {
+export interface SpanrailOptions {
   publicKey: string;
   secretKey: string;
   baseUrl?: string;
@@ -26,12 +26,12 @@ export interface TracewellOptions {
   flushIntervalMs?: number;
 }
 
-export class Tracewell {
+export class Spanrail {
   private queue: IngestEventEnvelope[] = [];
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
-  private readonly opts: Required<TracewellOptions>;
+  private readonly opts: Required<SpanrailOptions>;
 
-  constructor(opts: TracewellOptions) {
+  constructor(opts: SpanrailOptions) {
     this.opts = {
       baseUrl: "http://localhost:3000",
       flushAt: 20,
@@ -58,7 +58,7 @@ export class Tracewell {
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Tracewell getPrompt failed: ${res.status} ${text}`);
+      throw new Error(`Spanrail getPrompt failed: ${res.status} ${text}`);
     }
     return res.json();
   }
@@ -114,7 +114,7 @@ export class Tracewell {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Tracewell ingestion failed: ${res.status} ${text}`);
+      throw new Error(`Spanrail ingestion failed: ${res.status} ${text}`);
     }
   }
 
@@ -125,7 +125,7 @@ export class Tracewell {
 
 export class Trace {
   constructor(
-    private readonly client: Tracewell,
+    private readonly client: Spanrail,
     public readonly id: string,
   ) {}
 
@@ -180,7 +180,7 @@ export class Trace {
 
 class ObservationHandle {
   constructor(
-    protected readonly client: Tracewell,
+    protected readonly client: Spanrail,
     protected readonly traceId: string,
     public readonly id: string,
   ) {}

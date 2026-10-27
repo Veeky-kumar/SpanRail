@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/metrics"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/metrics"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
 )
 
 // fakeSender records every Send and answers from a script.
@@ -149,7 +149,7 @@ func TestQueueFullDropsAndCountsWithoutBlocking(t *testing.T) {
 	if dropped == 0 || accepted+dropped != 50 {
 		t.Fatalf("accepted=%d dropped=%d", accepted, dropped)
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_dropped_total"); got != float64(dropped) {
+	if got := testCounter(t, m, "spanrail_gateway_report_dropped_total"); got != float64(dropped) {
 		t.Errorf("dropped metric = %v, want %d", got, dropped)
 	}
 	if d := r.QueueDepth(); d > 2 {
@@ -191,10 +191,10 @@ func TestRetriesWithBackoffThenSucceeds(t *testing.T) {
 	if len(sleeps) != 2 || sleeps[0] != 100*time.Millisecond || sleeps[1] != 200*time.Millisecond {
 		t.Errorf("sleeps = %v, want [100ms 200ms] (exponential)", sleeps)
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_events_sent_total"); got != 3 {
+	if got := testCounter(t, m, "spanrail_gateway_report_events_sent_total"); got != 3 {
 		t.Errorf("events sent = %v", got)
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_flush_failures_total"); got != 0 {
+	if got := testCounter(t, m, "spanrail_gateway_report_flush_failures_total"); got != 0 {
 		t.Errorf("flush failures = %v", got)
 	}
 }
@@ -213,7 +213,7 @@ func TestGivesUpAfterMaxAttemptsAndCountsFailure(t *testing.T) {
 	if f.callCount() != 3 {
 		t.Errorf("attempts = %d, want 3", f.callCount())
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_flush_failures_total"); got != 1 {
+	if got := testCounter(t, m, "spanrail_gateway_report_flush_failures_total"); got != 1 {
 		t.Errorf("flush failures = %v, want 1", got)
 	}
 }
@@ -247,7 +247,7 @@ func TestPermanentRejectionIsNotRetried(t *testing.T) {
 	if f.callCount() != 1 {
 		t.Errorf("attempts = %d, want 1", f.callCount())
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_flush_failures_total"); got != 1 {
+	if got := testCounter(t, m, "spanrail_gateway_report_flush_failures_total"); got != 1 {
 		t.Errorf("flush failures = %v, want 1", got)
 	}
 }
@@ -266,7 +266,7 @@ func TestCloseFlushesQueuedEventsAndLaterEnqueuesAreDropped(t *testing.T) {
 	if r.Enqueue(obs(9)) {
 		t.Error("Enqueue after Close must be refused")
 	}
-	if got := testCounter(t, m, "tracewell_gateway_report_dropped_total"); got != 1 {
+	if got := testCounter(t, m, "spanrail_gateway_report_dropped_total"); got != 1 {
 		t.Errorf("dropped = %v", got)
 	}
 	closeNow(t, r) // idempotent
@@ -274,7 +274,7 @@ func TestCloseFlushesQueuedEventsAndLaterEnqueuesAreDropped(t *testing.T) {
 
 func TestCloseGivesUpWhenDeadlinePasses(t *testing.T) {
 	f := newFake()
-	f.block = make(chan struct{}) // never released: Tracewell "hangs"
+	f.block = make(chan struct{}) // never released: Spanrail "hangs"
 	c := cfg()
 	c.BatchSize = 3
 	r := New(c, f, metrics.New())

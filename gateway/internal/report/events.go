@@ -1,6 +1,6 @@
-// Package report delivers observations to Tracewell's public ingestion API without ever
+// Package report delivers observations to Spanrail's public ingestion API without ever
 // slowing the proxied request: a bounded queue, background batching, retries and a
-// drop-and-count policy when Tracewell cannot keep up.
+// drop-and-count policy when Spanrail cannot keep up.
 package report
 
 import (
@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/veeky-ai/tracewell-gateway/internal/ids"
-	"github.com/veeky-ai/tracewell-gateway/internal/observe"
+	"github.com/veeky-ai/spanrail-gateway/internal/ids"
+	"github.com/veeky-ai/spanrail-gateway/internal/observe"
 )
 
 // Event is one entry of the ingestion batch: {id, timestamp, type, body}.
@@ -24,7 +24,7 @@ type Event struct {
 
 // BuildEvents turns one observation into ingestion events.
 //
-//   - Without a client-supplied trace, a root trace is created first. In Tracewell a trace
+//   - Without a client-supplied trace, a root trace is created first. In Spanrail a trace
 //     is its own root observation (id == traceId, no parent).
 //   - The generation is sent as a create plus an update, like the SDK does. All metadata,
 //     usage and the end time live on the update only: the worker replaces `metadata`
@@ -103,7 +103,7 @@ func gatewayMeta(o observe.Observation) map[string]any {
 	return meta
 }
 
-// ts formats a time the way Tracewell's zod datetime() accepts: UTC with a Z suffix.
+// ts formats a time the way Spanrail's zod datetime() accepts: UTC with a Z suffix.
 func ts(t time.Time) string { return t.UTC().Format("2006-01-02T15:04:05.000Z") }
 
 // ms converts to milliseconds with microsecond precision.

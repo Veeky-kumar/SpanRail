@@ -1,6 +1,6 @@
-# Tracewell: architecture and design decisions
+# Spanrail: architecture and design decisions
 
-Tracewell is a self-hostable LLM observability platform: traces, evaluations, prompt management and
+Spanrail is a self-hostable LLM observability platform: traces, evaluations, prompt management and
 analytics, plus an optional Go gateway that measures where the time in each LLM call goes. This document
 describes how it fits together, why it is built that way, and what is not built yet.
 
@@ -39,7 +39,7 @@ Runtime pieces:
 
 ## Storage choice: Postgres only
 
-Tracewell starts with Postgres as the single data store and keeps Redis only as a queue. That keeps a
+Spanrail starts with Postgres as the single data store and keeps Redis only as a queue. That keeps a
 self-hosted install to one database plus Redis. A column store for the high-volume tables is a documented,
 evidence-triggered future step (see "Scaling path"), not a day-one requirement.
 
@@ -81,7 +81,7 @@ Durability trade-off: the staging table in Postgres is the durability layer. The
 copy of raw events, so there is no replay log. Adding one is the first step if replay or audit at scale is
 needed. It is recorded here so the omission is not mistaken for an oversight.
 
-Cost: only SDK-reported cost is stored (`costDetails` summed into `totalCost`). Tracewell does not compute
+Cost: only SDK-reported cost is stored (`costDetails` summed into `totalCost`). Spanrail does not compute
 cost from a price table yet, and usage and cost are never invented when unknown.
 
 ## Data model
@@ -189,8 +189,8 @@ the first remedy is a materialised daily rollup, not a rewrite.
 
 A separate service (own `go.mod`, Go 1.27.2, standard library plus `prometheus/client_golang`; it shares no
 code or build with the Node app). It sits in front of an OpenAI-compatible provider API as a reverse proxy
-and reports each call to Tracewell as a generation with network timing: DNS, connect, TLS, time to first
-byte and transfer. It talks to Tracewell **only through the public ingestion API** (Basic auth with the
+and reports each call to Spanrail as a generation with network timing: DNS, connect, TLS, time to first
+byte and transfer. It talks to Spanrail **only through the public ingestion API** (Basic auth with the
 project key pair). Nothing in the web app, schema, ingestion contract or worker was changed to support it.
 
 ```
@@ -204,7 +204,7 @@ client --> gateway --> provider
 Decisions, each tied to something verified in this repository:
 
 - **A trace is its own root observation** (`id == traceId`, no parent). A call that starts a new trace sends
-  `trace-create`, `generation-create` and `generation-update`. A call that sets `X-Tracewell-Trace-Id` skips
+  `trace-create`, `generation-create` and `generation-update`. A call that sets `X-Spanrail-Trace-Id` skips
   `trace-create` and attaches under the given trace.
 - **All metadata goes on the `generation-update` only.** The worker replaces `Observation.metadata`
   wholesale while merging other fields, so splitting metadata across events would let one erase the other.
@@ -212,13 +212,13 @@ Decisions, each tied to something verified in this repository:
 - **Unknown is never zero.** Token usage is sent only when the provider reported it. A DNS, connect or TLS
   phase is sent only when it happened (a reused keep-alive connection has none). The gateway has no price
   table, so it never sends `costDetails`.
-- **The request path never waits for Tracewell.** Observations pass through a bounded queue; when it is
+- **The request path never waits for Spanrail.** Observations pass through a bounded queue; when it is
   full the observation is dropped and counted. Verified against the real stack: 3,000 calls, 0 client
   errors, 1,034 delivered, 1,966 dropped, and exactly 1,034 generations stored.
 - **Ingestion is idempotent per event id**, so the reporter retries (exponential backoff, full jitter) only
   the events that failed retryably, including per-event 5xx inside a 207 response.
 - **The provider key never leaves the gateway path.** `Authorization` and other credential headers are
-  always redacted, bodies are off by default, and the Tracewell secret key type refuses to print itself.
+  always redacted, bodies are off by default, and the Spanrail secret key type refuses to print itself.
 - **Clean shutdown.** On SIGTERM it stops taking calls and flushes what is queued.
 
 Verified (numbers and raw output in `gateway/RESULTS.md`): 173 Go tests under `-race` plus 13 for the UI
@@ -232,7 +232,7 @@ race tests, build, `govulncheck`, Docker build) runs green on GitHub.
 Not verified, or known gaps: timing against a real HTTPS provider or HTTP/2 (only local servers were
 used); streamed usage exists only when the client asks for it (`include_usage`) and only in OpenAI shape;
 the queue is in memory, so a crash loses unsent events; the gateway does not authenticate its own callers;
-under sustained load above Tracewell's ingest rate it drops events by design.
+under sustained load above Spanrail's ingest rate it drops events by design.
 
 ## Deployment
 

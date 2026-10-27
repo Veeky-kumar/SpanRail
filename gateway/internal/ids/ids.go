@@ -1,4 +1,4 @@
-// Package ids generates the random identifiers Tracewell expects for traces, observations and events.
+// Package ids generates the random identifiers Spanrail expects for traces, observations and events.
 package ids
 
 import (

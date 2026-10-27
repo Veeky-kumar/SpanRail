@@ -1,21 +1,21 @@
 # spanrail
 
-Python SDK for [Tracewell](https://github.com/Veeky-kumar/tracewell), a self-hosted LLM observability
+Python SDK for [Spanrail](https://github.com/Veeky-kumar/spanrail), a self-hosted LLM observability
 platform. No dependencies; Python 3.9 or newer.
 
 ```
 pip install spanrail
 ```
 
-The import name is `spanrail`; the client class is `Tracewell`, because it talks to a Tracewell server.
+The import name is `spanrail`; the client class is `Spanrail`, because it talks to a Spanrail server.
 
 ## Send a trace
 
 ```python
 from openai import OpenAI
-from spanrail import Tracewell
+from spanrail import Spanrail
 
-tw = Tracewell("pk-...", "sk-...", base_url="http://localhost:3000")
+tw = Spanrail("pk-...", "sk-...", base_url="http://localhost:3000")
 client = OpenAI()
 
 trace = tw.trace("support-chat", user_id="u_123", tags=["prod"])
@@ -37,7 +37,7 @@ for example at the end of a serverless handler.
 
 ## Behaviour worth knowing
 
-- **It never raises into your app.** If Tracewell is down, a batch is retried a few times and then
+- **It never raises into your app.** If Spanrail is down, a batch is retried a few times and then
   dropped. `tw.sent` and `tw.dropped` count both. A full queue (`max_queue`, default 10,000) drops new
   events the same way.
 - **Unknown is not zero.** Fields you leave out are not sent. Usage and cost appear only if you pass them.
@@ -49,7 +49,7 @@ for example at the end of a serverless handler.
 
 ## Options
 
-`Tracewell(public_key, secret_key, base_url="http://localhost:3000", flush_at=20, flush_interval=2.0,
+`Spanrail(public_key, secret_key, base_url="http://localhost:3000", flush_at=20, flush_interval=2.0,
 max_queue=10000, timeout=10.0, retries=3)`
 
 ## Licence

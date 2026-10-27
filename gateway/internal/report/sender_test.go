@@ -63,15 +63,15 @@ func TestSenderBasePathIsKept(t *testing.T) {
 		_, _ = io.WriteString(w, `{"successes":[],"errors":[]}`)
 	}))
 	defer srv.Close()
-	u, _ := url.Parse(srv.URL + "/tracewell/")
+	u, _ := url.Parse(srv.URL + "/spanrail/")
 	NewHTTPSender(u, "p", "s", time.Second).Send(context.Background(), events(1))
-	if gotPath != "/tracewell/api/public/ingestion" {
+	if gotPath != "/spanrail/api/public/ingestion" {
 		t.Errorf("path = %q", gotPath)
 	}
 }
 
 func TestSenderPartialFailureSplitsRetryableFromRejected(t *testing.T) {
-	// Tracewell reports validation failures by event id and storage failures by entity id.
+	// Spanrail reports validation failures by event id and storage failures by entity id.
 	s, _ := sender(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(207)
 		_, _ = io.WriteString(w, `{"successes":[{"id":"ent-a","status":201}],
@@ -129,7 +129,7 @@ func TestSenderConnectionErrorIsRetryableAndDoesNotLeakTheSecret(t *testing.T) {
 	}
 }
 
-func TestSenderTimesOutASlowTracewell(t *testing.T) {
+func TestSenderTimesOutASlowSpanrail(t *testing.T) {
 	release := make(chan struct{})
 	s, _ := sender(t, func(w http.ResponseWriter, r *http.Request) { <-release })
 	defer close(release)
