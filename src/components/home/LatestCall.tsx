@@ -21,9 +21,10 @@ export function LatestCall({ latest, next }: { latest: Latest | null; next: Setu
         <TimeRailFigure
           fig="Fig 1"
           title="Sample call"
-          hint="Your call will appear here"
+          hint="Click to replay"
           fixedStep={6}
           slideIn
+          tour
           caption="A sample call, drawn on the time rail. Route a client through the gateway and your own latest call replaces it, with the milliseconds the gateway measured. Sample data."
         />
         <p className="mt-4 max-w-2xl text-sm text-muted">
@@ -50,8 +51,9 @@ export function LatestCall({ latest, next }: { latest: Latest | null; next: Setu
         timing={timing}
         fig="Fig 1"
         title="Your latest call"
-        hint="Measured by the gateway"
+        hint="Click to replay"
         fixedStep={6}
+        tour
         caption={`Your newest call through the gateway${latest.model ? `, ${latest.model}` : ""}, in ${latest.projectName}, ${when}. The carriage rides a ruler across one block per phase of the round trip, drawn from the milliseconds the gateway measured.`}
       />
       <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 text-sm">

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseGatewayTiming, type GatewayTiming } from "@/lib/gatewayTiming";
 import { SAMPLE_TIMING } from "@/lib/sampleTrace";
-import { DIAL_FROM, DIAL_SPAN, RULER_LEN, X0, carriageX, elapsedMs, needleAngle, railOf, readoutOf, totalMs } from "./rail";
+import { DIAL_FROM, DIAL_SPAN, RULER_LEN, X0, carriageX, elapsedMs, needleAngle, railOf, readoutOf, tourOf, totalMs } from "./rail";
 
 const timingOf = (t: Record<string, number>, extra: Record<string, unknown> = {}): GatewayTiming =>
   parseGatewayTiming({ gateway: { timingMs: t, ...extra } })!;
@@ -112,5 +112,41 @@ describe("a call with no response byte", () => {
     const model = railOf(timingOf({ dns: 30, connect: 10, total: 40 }));
     expect(model.segs.map((s) => s.key)).toEqual(["dns", "connect"]);
     expect(endOf(model)).toBeLessThanOrEqual(X0 + RULER_LEN + 1.5);
+  });
+});
+
+describe("tourOf: the idle replay of a call", () => {
+  it("visits the stages of the sample call in order, from the request to the report", () => {
+    const beats = tourOf(railOf(SAMPLE_TIMING));
+    expect(beats.map((b) => b.step)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("skips the phases that did not happen on this call", () => {
+    const beats = tourOf(railOf(timingOf({ ttfb: 190, total: 300 }, { connReused: true })));
+    expect(beats.map((b) => b.step)).toEqual([0, 4, 5, 6]);
+  });
+
+  it("lingers longer on a long phase than on a short one, but never too short or too long", () => {
+    const beats = tourOf(railOf(SAMPLE_TIMING));
+    const dwell = (step: number) => beats.find((b) => b.step === step)!.dwellMs;
+    expect(dwell(4)).toBeGreaterThan(dwell(2)); // the 201 ms wait vs the 21 ms TLS handshake
+    for (const b of beats) {
+      expect(b.dwellMs).toBeGreaterThanOrEqual(500);
+      expect(b.dwellMs).toBeLessThanOrEqual(4000);
+    }
+  });
+
+  it("holds the finished call (lamp on) longest, before looping", () => {
+    const beats = tourOf(railOf(SAMPLE_TIMING));
+    const last = beats[beats.length - 1];
+    expect(last.step).toBe(6);
+    expect(last.dwellMs).toBe(Math.max(...beats.map((b) => b.dwellMs)));
+  });
+
+  it("works for a call with a single phase", () => {
+    const beats = tourOf(railOf(timingOf({ ttfb: 50, total: 50 })));
+    expect(beats[0].step).toBe(0);
+    expect(beats[beats.length - 1].step).toBe(6);
+    expect(beats.length).toBeGreaterThanOrEqual(3);
   });
 });

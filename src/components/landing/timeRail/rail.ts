@@ -2,7 +2,7 @@
 // landing page, a real gateway-reported call on the home page), so the carriage position, the dial and
 // the readout always come from the numbers the page states. Everything the figure draws scales to the
 // call: the ruler and the dial run to the next round number above its total, whether that is 20 ms or 60 s.
-import { journeyState } from "@/lib/callJourney";
+import { STAGES, journeyState } from "@/lib/callJourney";
 import type { GatewayTiming, TimingPhaseKey } from "@/lib/gatewayTiming";
 import { niceTicks } from "@/lib/timeAxis";
 
@@ -114,4 +114,28 @@ export function readoutOf(ms: number, total: number): string {
     return `${(ms / 1000).toFixed(digits)} of ${(total / 1000).toFixed(digits)} s`;
   }
   return `${fmt(ms)} of ${fmt(total)} ms`;
+}
+
+export interface TourBeat {
+  /** The stage of the call to show (an index into STAGES). */
+  step: number;
+  /** How long to stay there, in ms. */
+  dwellMs: number;
+}
+
+/**
+ * The idle replay of a call: the request, then each phase that actually happened, then the report.
+ * A long phase is held longer than a short one (so the pace echoes the call), and the finished call is
+ * held longest before the replay loops.
+ */
+export function tourOf(model: RailModel): TourBeat[] {
+  const beats: TourBeat[] = [{ step: 0, dwellMs: 900 }];
+  STAGES.forEach((stage, step) => {
+    if (!stage.phase) return; // the request and the report are the two ends
+    const seg = model.segs.find((s) => s.key === stage.phase);
+    if (!seg) return; // that phase did not happen on this call
+    beats.push({ step, dwellMs: Math.round(700 + 2000 * (seg.ms / Math.max(model.totalFresh, 1))) });
+  });
+  beats.push({ step: STAGES.length - 1, dwellMs: 3400 });
+  return beats;
 }

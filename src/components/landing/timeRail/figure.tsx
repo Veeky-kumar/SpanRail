@@ -17,10 +17,12 @@ interface Props {
   fixedStep?: number;
   /** With a fixed step: travel there once on load instead of showing it at once. */
   slideIn?: boolean;
+  /** Replay the call on a loop while it is in view (see TimeRailLive). */
+  tour?: boolean;
 }
 
 /** The card around the figure: Fig label, title, hint, live readout, legend and a true caption. */
-export function TimeRailFigure({ timing = SAMPLE_TIMING, fig = "Fig 1", title = "The time rail", hint = "Use the steps below", caption, fixedStep, slideIn }: Props) {
+export function TimeRailFigure({ timing = SAMPLE_TIMING, fig = "Fig 1", title = "The time rail", hint = "Use the steps below", caption, fixedStep, slideIn, tour }: Props) {
   const model = railOf(timing);
   const finished = fixedStep !== undefined && !slideIn;
   const resting = finished ? readoutOf(model.totalFresh, model.totalFresh) : readoutOf(0, model.totalFresh);
@@ -44,7 +46,7 @@ export function TimeRailFigure({ timing = SAMPLE_TIMING, fig = "Fig 1", title = 
           `A measuring bench for one call. The carriage rides a ruler graduated in ${model.unit === "s" ? "seconds" : "milliseconds"} across one block per phase of the round trip, drawn to scale.${widened} A sensor on the gateway's beam follows it, the dial reads the elapsed time, and the lamp on the logger lights once the call has been reported to Tracewell. Sample data.`
         }
       >
-        <TimeRailArt model={model} fixedStep={fixedStep} slideIn={slideIn} />
+        <TimeRailArt model={model} fixedStep={fixedStep} slideIn={slideIn} tour={tour} />
       </Plate>
     </div>
   );

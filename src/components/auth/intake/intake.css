@@ -1,0 +1,85 @@
+/* Intake desk styles. Every colour is a token: the parcel colours are the app's time ramp. */
+.ip .iso-svg {
+  overflow: visible;
+}
+
+.ip[data-tour] {
+  cursor: pointer;
+}
+
+/* Parcels: a trace-create is plain paper, a generation-create and a generation-update take two steps of the ramp. */
+.ip-parcel[data-kind="generation-create"] .iso-top {
+  fill: rgb(var(--t2));
+}
+.ip-parcel[data-kind="generation-update"] .iso-top {
+  fill: rgb(var(--t4));
+}
+/* A resend carries a dashed edge, so it reads as a repeat without relying on colour. */
+.ip-parcel[data-duplicate] .iso-edge {
+  stroke-dasharray: 2.4 1.6;
+}
+
+/* One lamp per waiting event on the queue panel. */
+.ip-lamp-wrap .iso-top {
+  transition: fill 250ms var(--anatomy-ease);
+}
+.ip-lamp-wrap[data-on] .iso-top {
+  fill: rgb(var(--t4));
+}
+.ip-lamp-wrap[data-on] .iso-edge {
+  stroke: var(--anatomy-lit);
+}
+
+/* The viewer builds one row of the trace tree per stored trace. */
+.ip-view .ip-row {
+  opacity: 0;
+  transition: opacity 400ms var(--anatomy-ease);
+}
+.ip-view[data-n="1"] .ip-row[data-row="1"],
+.ip-view[data-n="2"] .ip-row {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ip-lamp-wrap .iso-top,
+  .ip-view .ip-row {
+    transition: none;
+  }
+}
+
+/* The figure replays on click; a real button gives keyboard users the same. */
+.ip-replay {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* When the system asks for reduced motion nothing plays by itself, so the button is shown, not hidden. */
+.ip[data-still] .ip-replay,
+.ip-replay:focus-visible {
+  width: auto;
+  height: auto;
+  clip: auto;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--anatomy-card);
+  border: 1px solid var(--anatomy-mid);
+  color: var(--anatomy-strong);
+  font: 12px var(--anatomy-mono);
+  outline: 2px solid var(--anatomy-hi);
+  outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .iso-plate .ip .iso-svg {
+    width: 118%;
+    margin: -4% -9% -3%;
+  }
+  .ip {
+    overflow: hidden;
+  }
+}
