@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
-import { ProductVisual } from "@/components/ProductVisual";
+import { IntakeFigure } from "@/components/auth/intake/figure";
 
 /**
  * Split screen for sign in / sign up. The left panel is always dark (a data-theme scope), so the
- * product visual reads the same in either theme; it is hidden on narrow screens, where the form
- * carries its own wordmark.
+ * figure reads the same in either theme; it is hidden on narrow screens, where the form carries its
+ * own wordmark. The figure is the intake desk: a replayed, illustrative walk through what happens to
+ * the events of one call after they reach Tracewell.
  */
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
@@ -14,13 +15,15 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         <Link href="/" aria-label="Tracewell home" className="w-fit">
           <Logo />
         </Link>
-        <div className="max-w-xl">
+        <div className="max-w-2xl">
           <h2 className="display">See where every LLM call spends its time.</h2>
           <p className="mt-4 max-w-md text-base text-muted">
             Traces, evaluations and prompts in one self-hosted place, with DNS, connect, TLS and first-byte timing for
             every call that passes through the gateway.
           </p>
-          <ProductVisual className="mt-10" />
+          <div className="mt-8">
+            <IntakeFigure />
+          </div>
         </div>
         <p className="text-xs text-muted">Runs on your own infrastructure. Your data stays with you.</p>
       </section>

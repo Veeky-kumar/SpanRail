@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { IsoFigure } from "../../iso/react/draw";
-import { asksForStillness, follow, useReadout } from "../../iso/react/live";
+import { asksForStillness, follow, useInView, useReadout, useStillness } from "../../iso/react/live";
 import { JourneyContext } from "../journeyContext";
 import { needlePath } from "./needle";
-import { X0, carriageX, elapsedMs, needleAngle, readoutOf, totalMs, type RailModel } from "./rail";
+import { X0, carriageX, elapsedMs, needleAngle, readoutOf, tourOf, totalMs, type RailModel } from "./rail";
 import { HEIGHT, SEG_SINK, WIDTH, shift } from "./view";
 
 const MOVE = 0.34; // seconds for the carriage to settle on a new position
@@ -22,6 +22,11 @@ interface Props {
   fixedStep?: number;
   /** With a fixed step: start at zero and travel there once on load, instead of showing the end at once. */
   slideIn?: boolean;
+  /**
+   * Replay the call on a loop while nobody touches the figure (the skill's "idle tour"): it pauses under
+   * the pointer, restarts on click or Enter, stops when scrolled out of view, and is off under reduced motion.
+   */
+  tour?: boolean;
   base: React.ReactNode;
   gateway: React.ReactNode;
   logger: React.ReactNode;
@@ -49,9 +54,10 @@ function valuesFor(model: RailModel, step: number, reused: boolean): Values {
 }
 
 /** The "use client" layer: it moves the carriage, the sensor, the needle and the sinking blocks on refs. */
-export function TimeRailLive({ model, fixedStep, slideIn = false, ...props }: Props) {
+export function TimeRailLive({ model, fixedStep, slideIn = false, tour = false, ...props }: Props) {
   const journey = React.useContext(JourneyContext);
-  const step = fixedStep ?? journey.step;
+  const [tourAt, setTourAt] = React.useState<number | null>(null);
+  const step = tourAt ?? fixedStep ?? journey.step;
   const reused = fixedStep !== undefined ? false : journey.reused;
   const { anchor, say } = useReadout<HTMLDivElement>();
   const carriage = React.useRef<SVGGElement | null>(null);
@@ -75,6 +81,53 @@ export function TimeRailLive({ model, fixedStep, slideIn = false, ...props }: Pr
   const modelRef = React.useRef(model);
   modelRef.current = model;
   const slow = React.useRef(fixedStep !== undefined && slideIn);
+
+  // The idle tour: replay the call phase by phase, forever, while it is in view and the reader is not
+  // using it. The finished call is shown first so it can be read before it replays.
+  const stillness = useStillness();
+  const inView = useInView(anchor);
+  const [restarts, setRestarts] = React.useState(0);
+  const hovering = React.useRef(false);
+  const touredOnce = React.useRef(false);
+  const beats = React.useMemo(() => tourOf(model), [model]);
+  // Reduced motion: nothing starts by itself. The reader can still ask for the replay (click, Enter, or the
+  // Play button that shows in that case), and motion they ask for is played, one pass, not looped.
+  const [pass, setPass] = React.useState<number | null>(null);
+  const onePass = tour && stillness && pass !== null;
+  const looping = tour && !stillness && inView;
+  const asked = React.useRef(false);
+  asked.current = fixedStep === undefined || onePass;
+  React.useEffect(() => {
+    if (!looping && !onePass) return;
+    let i = 0;
+    let timer = 0;
+    const beat = () => {
+      if (hovering.current) {
+        timer = window.setTimeout(beat, 300); // paused while the pointer is over it
+        return;
+      }
+      if (onePass && i >= beats.length) {
+        setPass(null); // one pass played: settle on the finished call
+        return;
+      }
+      const b = beats[i % beats.length];
+      if (b.step === 0) slow.current = true; // the carriage returns to the start gently
+      setTourAt(b.step);
+      i++;
+      timer = window.setTimeout(beat, b.dwellMs);
+    };
+    timer = window.setTimeout(beat, touredOnce.current || onePass ? 0 : 2400);
+    touredOnce.current = true;
+    return () => {
+      window.clearTimeout(timer);
+      setTourAt(null); // out of view or restarting: settle on the finished call
+    };
+  }, [looping, onePass, beats, restarts]);
+  const replay = React.useCallback(() => {
+    hovering.current = false; // asking for the replay overrides the pause the pointer is causing
+    setRestarts((n) => n + 1);
+    if (stillness) setPass((n) => (n ?? 0) + 1);
+  }, [stillness]);
 
   const draw = React.useCallback(() => {
     const v = shown.current;
@@ -100,7 +153,9 @@ export function TimeRailLive({ model, fixedStep, slideIn = false, ...props }: Pr
     const tick = (now: number) => {
       const dt = last.current ? Math.min((now - last.current) / 1000, 1 / 30) : 1 / 60;
       last.current = now;
-      const calm = asksForStillness();
+      // Motion the reader asked for (a stepper press, a replay) is played even when the system asks for
+      // reduced motion; only motion that starts by itself is held back.
+      const calm = asksForStillness() && !asked.current;
       const want = goal.current;
       const target = valuesFor(modelRef.current, want.step, want.reused);
       const v = shown.current;
@@ -131,7 +186,15 @@ export function TimeRailLive({ model, fixedStep, slideIn = false, ...props }: Pr
   const initiallyDone = fixedStep === LAST_STEP && !slideIn;
 
   return (
-    <div ref={anchor} className="tr">
+    <div
+      ref={anchor}
+      className="tr"
+      data-tour={tour ? "" : undefined}
+      data-still={tour && stillness ? "" : undefined}
+      onPointerEnter={tour ? () => (hovering.current = true) : undefined}
+      onPointerLeave={tour ? () => (hovering.current = false) : undefined}
+      onClick={tour ? replay : undefined}
+    >
       <IsoFigure width={WIDTH} height={HEIGHT} label={props.label}>
         {props.base}
         {props.gateway}
@@ -159,6 +222,18 @@ export function TimeRailLive({ model, fixedStep, slideIn = false, ...props }: Pr
           {props.sensor}
         </g>
       </IsoFigure>
+      {tour ? (
+        <button
+          type="button"
+          className="tr-replay"
+          onClick={(e) => {
+            e.stopPropagation();
+            replay();
+          }}
+        >
+          {stillness ? "Play this call" : "Replay this call"}
+        </button>
+      ) : null}
     </div>
   );
 }

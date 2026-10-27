@@ -189,13 +189,14 @@ const SENSOR = (
 const label = (model: RailModel) =>
   `A measuring bench for one LLM call that took ${readoutOf(model.totalFresh, model.totalFresh).split(" of ")[1]}, with time laid out along its length. A carriage, the request, rides two guide rails over ${model.segs.length} blocks end to end, one for each phase of the round trip that happened: DNS lookup, TCP connect, TLS handshake, the provider's wait and the response transfer. A ruler in ${model.unit === "s" ? "seconds" : "milliseconds"} runs along the front and the carriage points at it. A sensor on the gateway's beam follows the carriage, a dial gauge reads the elapsed time, and a lamp on the logger box lights once the call has been reported to Tracewell.`;
 
-export function TimeRailArt({ model, fixedStep, slideIn }: { model: RailModel; fixedStep?: number; slideIn?: boolean }) {
+export function TimeRailArt({ model, fixedStep, slideIn, tour }: { model: RailModel; fixedStep?: number; slideIn?: boolean; tour?: boolean }) {
   const { setup, later } = segments(model);
   return (
     <TimeRailLive
       model={model}
       fixedStep={fixedStep}
       slideIn={slideIn}
+      tour={tour}
       label={label(model)}
       base={BASE}
       gateway={GATEWAY}

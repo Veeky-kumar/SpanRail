@@ -153,7 +153,8 @@ export function Landing() {
                 hint="A sample call"
                 fixedStep={6}
                 slideIn
-                caption="A sample call from request to report, drawn on the time rail: one block for each phase of the round trip. The carriage travels the call once when the page loads. Sample data."
+                tour
+                caption="A sample call from request to report, drawn on the time rail: one block for each phase of the round trip. The carriage travels the call when the page loads, then replays it; click to replay. Sample data."
               />
             </div>
           </section>

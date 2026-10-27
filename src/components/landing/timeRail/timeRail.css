@@ -59,3 +59,33 @@
 .tr-wrap .iso-figure {
   margin: 16px 0 0;
 }
+
+/* The tour replays on click, so the figure says so; a real button gives keyboard users the same. */
+.tr[data-tour] {
+  cursor: pointer;
+}
+.tr-replay {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* When the system asks for reduced motion nothing plays by itself, so the button is shown, not hidden. */
+.tr[data-still] .tr-replay,
+.tr-replay:focus-visible {
+  width: auto;
+  height: auto;
+  clip: auto;
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  background: var(--anatomy-card);
+  border: 1px solid var(--anatomy-mid);
+  color: var(--anatomy-strong);
+  font: 12px var(--anatomy-mono);
+  outline: 2px solid var(--anatomy-hi);
+  outline-offset: 2px;
+}
