@@ -14,11 +14,11 @@ export default async function DatasetsPage({ params }: { params: Promise<{ proje
       <div>
         <h2 className="text-sm font-medium text-muted">Datasets</h2>
         {datasets.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-border bg-surface px-5 py-10 text-center text-sm text-muted">
+          <div className="mt-4 rounded-data border border-rule bg-surface px-5 py-10 text-center text-sm text-muted">
             No datasets yet. Create one to start running repeatable evaluations.
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-4 overflow-hidden rounded-data border border-rule bg-surface">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -56,14 +56,14 @@ export default async function DatasetsPage({ params }: { params: Promise<{ proje
         )}
       </div>
 
-      <form action={createAction} className="h-fit rounded-xl border border-border bg-surface p-4">
+      <form action={createAction} className="h-fit rounded-data border border-rule bg-surface p-4">
         <h3 className="text-sm font-medium">New dataset</h3>
 
         <label className="mt-4 block text-xs font-medium text-muted">Name</label>
-        <input name="name" required className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" placeholder="support-qa-golden-set" />
+        <input name="name" required className="mt-1 input" placeholder="support-qa-golden-set" />
 
         <label className="mt-3 block text-xs font-medium text-muted">Description</label>
-        <input name="description" className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+        <input name="description" className="mt-1 input" />
 
         <label className="mt-3 block text-xs font-medium text-muted">Deterministic scorers to auto-run</label>
         <div className="mt-1 space-y-1.5">
@@ -77,7 +77,7 @@ export default async function DatasetsPage({ params }: { params: Promise<{ proje
 
         <SubmitButton
           pendingLabel="Creating…"
-          className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90"
+          className="btn-primary pressable mt-4 w-full"
         >
           Create dataset
         </SubmitButton>

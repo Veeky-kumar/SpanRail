@@ -41,7 +41,7 @@ export default async function DatasetDetailPage({
           <div className="flex items-baseline justify-between">
             <h3 className="text-sm font-medium text-muted">Items ({items.length})</h3>
           </div>
-          <div className="mt-3 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-3 overflow-hidden rounded-data border border-rule bg-surface">
             {items.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted">No items yet.</p>
             ) : (
@@ -68,15 +68,15 @@ export default async function DatasetDetailPage({
             )}
           </div>
 
-          <form action={addItem} className="mt-3 rounded-xl border border-border bg-surface p-4">
+          <form action={addItem} className="mt-3 rounded-data border border-rule bg-surface p-4">
             <h4 className="text-xs font-medium text-muted">Add item</h4>
             <label className="mt-2 block text-xs text-muted">Input (plain text or JSON)</label>
-            <textarea name="input" required rows={2} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+            <textarea name="input" required rows={2} className="mt-1 input" />
             <label className="mt-2 block text-xs text-muted">Expected output (optional)</label>
-            <textarea name="expectedOutput" rows={2} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+            <textarea name="expectedOutput" rows={2} className="mt-1 input" />
             <SubmitButton
               pendingLabel="Adding…"
-              className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
+              className="pressable mt-2 rounded-data border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
             >
               Add item
             </SubmitButton>
@@ -87,7 +87,7 @@ export default async function DatasetDetailPage({
           <h3 className="text-sm font-medium text-muted">Runs ({runs.length})</h3>
           <div className="mt-3 space-y-3">
             {runs.length === 0 ? (
-              <div className="rounded-xl border border-border bg-surface px-4 py-6 text-center text-sm text-muted">
+              <div className="rounded-data border border-rule bg-surface px-4 py-6 text-center text-sm text-muted">
                 No runs yet. Create one, then link traces to it via
                 <code className="ml-1 rounded bg-canvas px-1.5 py-0.5">
                   POST /api/public/datasets/{datasetId}/runs/:runId/items
@@ -99,7 +99,7 @@ export default async function DatasetDetailPage({
                 <Link
                   key={run.id}
                   href={`/projects/${projectId}/datasets/${datasetId}/runs/${run.id}`}
-                  className="pressable block rounded-xl border border-border bg-surface p-4 transition-colors duration-150 hover:border-accent/40"
+                  className="pressable block rounded-data border border-rule bg-surface p-4 transition-colors duration-150 hover:border-accent/40"
                 >
                   <div className="flex items-center justify-between">
                     <span className="font-medium">{run.name}</span>
@@ -120,12 +120,12 @@ export default async function DatasetDetailPage({
             )}
           </div>
 
-          <form action={createRun} className="mt-3 rounded-xl border border-border bg-surface p-4">
+          <form action={createRun} className="mt-3 rounded-data border border-rule bg-surface p-4">
             <h4 className="text-xs font-medium text-muted">New run</h4>
-            <input name="name" required placeholder="run-2026-10-13" className="mt-2 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+            <input name="name" required placeholder="run-2026-10-13" className="mt-2 input" />
             <SubmitButton
               pendingLabel="Creating…"
-              className="pressable mt-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
+              className="pressable mt-2 rounded-data border border-border px-3 py-1.5 text-xs font-medium transition-colors duration-150 hover:bg-canvas"
             >
               Create run
             </SubmitButton>

@@ -22,7 +22,7 @@ export default async function PromptDetailPage({
 
       <div className="mt-4 space-y-3">
         {versions.map((v) => (
-          <div key={v.id} className="rounded-xl border border-border bg-surface p-4">
+          <div key={v.id} className="rounded-data border border-rule bg-surface p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">v{v.version}</span>
@@ -39,7 +39,7 @@ export default async function PromptDetailPage({
               </div>
               <span className="text-xs text-muted">{formatRelativeTime(v.createdAt)}</span>
             </div>
-            <pre className="mt-3 max-h-48 overflow-auto rounded-lg bg-canvas p-3 text-xs">
+            <pre className="mt-3 max-h-48 overflow-auto rounded-data bg-canvas p-3 text-xs">
               {typeof v.prompt === "string" ? v.prompt : JSON.stringify(v.prompt, null, 2)}
             </pre>
           </div>

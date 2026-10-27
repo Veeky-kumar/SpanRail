@@ -17,12 +17,12 @@ export default async function ProjectTracesPage({ params }: { params: Promise<{ 
       </div>
 
       {traces.length === 0 ? (
-        <div className="mt-6 rounded-[10px] border border-rule bg-surface px-5 py-10 text-center text-sm text-muted">
+        <div className="mt-6 rounded-data border border-rule bg-surface px-5 py-10 text-center text-sm text-muted">
           No traces yet. Send a trace with the SDK, or point an OpenAI-compatible client at the gateway, and it will
           show up here within a couple of seconds.
         </div>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-[10px] border border-rule bg-surface">
+        <div className="mt-4 overflow-x-auto rounded-data border border-rule bg-surface">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-rule text-left text-xs text-muted">

@@ -2,7 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
+:root,
+:root[data-theme="light"] {
   --canvas: 242 244 246;
   --surface: 251 252 253;
   --border: 221 227 233;
@@ -25,10 +26,30 @@
      type their own near-identical cubic-bezier. */
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  color-scheme: light;
 }
 
+[data-theme="dark"] {
+  --canvas: 15 20 27;
+  --surface: 21 27 35;
+  --border: 31 40 51;
+  --rule: 43 54 68;
+  --ink: 230 236 243;
+  --muted: 154 167 182;
+  --accent: 127 168 224;
+  --fault: 229 115 106;
+
+  --t1: 42 69 104;
+  --t2: 54 89 138;
+  --t3: 74 118 179;
+  --t4: 108 151 208;
+  --t5: 155 188 232;
+
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme="system"] {
     --canvas: 15 20 27;
     --surface: 21 27 35;
     --border: 31 40 51;
@@ -43,6 +64,8 @@
     --t3: 74 118 179;
     --t4: 108 151 208;
     --t5: 155 188 232;
+
+    color-scheme: dark;
   }
 }
 
@@ -107,9 +130,10 @@ body {
   }
 }
 
-/* Dataviz tokens — validated default palette (see dataviz skill references/palette.md).
+/* Dataviz tokens - validated default palette (see dataviz skill references/palette.md).
    Scoped to .viz-root per the skill's instructions so chart color never leaks into
-   ordinary UI, and light/dark swap in one place. */
+   ordinary UI, and light/dark swap in one place. Follows the same three-way theme
+   selector as the app tokens above. */
 .viz-root {
   color-scheme: light;
   --viz-surface: #fcfcfb;
@@ -125,8 +149,23 @@ body {
   --viz-status-critical: #d03b3b;
   --viz-success: #006300;
 }
+[data-theme="dark"] .viz-root {
+  color-scheme: dark;
+  --viz-surface: #1a1a19;
+  --viz-text-primary: #ffffff;
+  --viz-text-secondary: #c3c2b7;
+  --viz-text-muted: #898781;
+  --viz-grid: #2c2c2a;
+  --viz-axis: #383835;
+  --viz-blue-400: #3987e5;
+  --viz-blue-450: #2a78d6;
+  --viz-blue-100: #184f95;
+  --viz-orange: #d95926;
+  --viz-status-critical: #e66767;
+  --viz-success: #0ca30c;
+}
 @media (prefers-color-scheme: dark) {
-  :root:where(:not([data-theme="light"])) .viz-root {
+  :root[data-theme="system"] .viz-root {
     color-scheme: dark;
     --viz-surface: #1a1a19;
     --viz-text-primary: #ffffff;
@@ -142,18 +181,69 @@ body {
     --viz-success: #0ca30c;
   }
 }
-:root[data-theme="dark"] .viz-root {
-  color-scheme: dark;
-  --viz-surface: #1a1a19;
-  --viz-text-primary: #ffffff;
-  --viz-text-secondary: #c3c2b7;
-  --viz-text-muted: #898781;
-  --viz-grid: #2c2c2a;
-  --viz-axis: #383835;
-  --viz-blue-400: #3987e5;
-  --viz-blue-450: #2a78d6;
-  --viz-blue-100: #184f95;
-  --viz-orange: #d95926;
-  --viz-status-critical: #e66767;
-  --viz-success: #0ca30c;
+
+/* Shared building blocks. Data surfaces are sharp (3px, rounded-data in tailwind.config.ts);
+   only overlays (menus, popovers, sheets) are soft and translucent. */
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-data px-3.5 py-2 text-sm font-medium transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply btn bg-ink text-surface hover:opacity-90;
+  }
+  .btn-secondary {
+    @apply btn border border-rule bg-surface text-ink hover:bg-canvas;
+  }
+  .input {
+    @apply w-full rounded-data border border-rule bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent;
+  }
+  /* The one orchestrated moment: on the landing hero the ruler's phases draw in once, left to
+     right. Scoped to .ruler-grow so the detail panel never replays it on every click. */
+  .ruler-grow .ruler-seg {
+    transform-origin: left;
+    animation: ruler-grow 600ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 150ms);
+  }
+  @keyframes ruler-grow {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ruler-grow .ruler-seg {
+      animation: none;
+    }
+  }
+  /* Display type (apple-design): tracking tightens as size grows, leading follows. */
+  .display {
+    @apply font-semibold;
+    font-size: clamp(2rem, 4.2vw, 3.25rem);
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+  }
+  .display-xl {
+    @apply font-semibold;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+  }
+  /* Soft translucent overlay (apple-design materials): blurred, with a lit top edge. A solid
+     fallback is used when the user asks for less transparency. */
+  .glass {
+    @apply rounded-overlay border border-rule/70;
+    background: rgb(var(--surface) / 0.72);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.4) inset, 0 12px 32px -8px rgb(0 0 0 / 0.18);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass {
+      background: rgb(var(--surface));
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
 }

@@ -14,11 +14,11 @@ export default async function PromptsPage({ params }: { params: Promise<{ projec
       <div>
         <h2 className="text-sm font-medium text-muted">Prompts</h2>
         {prompts.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-border bg-surface px-5 py-10 text-center text-sm text-muted">
+          <div className="mt-4 rounded-data border border-rule bg-surface px-5 py-10 text-center text-sm text-muted">
             No prompts yet. Create one with the form, or via <code className="rounded bg-canvas px-1.5 py-0.5">POST /api/public/prompts</code>.
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-4 overflow-hidden rounded-data border border-rule bg-surface">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">
@@ -57,22 +57,22 @@ export default async function PromptsPage({ params }: { params: Promise<{ projec
         )}
       </div>
 
-      <form action={createAction} className="h-fit rounded-xl border border-border bg-surface p-4">
+      <form action={createAction} className="h-fit rounded-data border border-rule bg-surface p-4">
         <h3 className="text-sm font-medium">New version</h3>
         <p className="mt-1 text-xs text-muted">Creates a new prompt, or a new version if the name already exists.</p>
 
         <label className="mt-4 block text-xs font-medium text-muted">Name</label>
-        <input name="name" required className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" placeholder="support-agent-system-prompt" />
+        <input name="name" required className="mt-1 input" placeholder="support-agent-system-prompt" />
 
         <label className="mt-3 block text-xs font-medium text-muted">Prompt text</label>
-        <textarea name="prompt" required rows={6} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" placeholder="You are a helpful assistant. {{context}}" />
+        <textarea name="prompt" required rows={6} className="mt-1 input" placeholder="You are a helpful assistant. {{context}}" />
 
         <label className="mt-3 block text-xs font-medium text-muted">Labels (comma-separated)</label>
-        <input name="labels" className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" placeholder="production" />
+        <input name="labels" className="mt-1 input" placeholder="production" />
 
         <SubmitButton
           pendingLabel="Creating…"
-          className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90"
+          className="btn-primary pressable mt-4 w-full"
         >
           Create version
         </SubmitButton>

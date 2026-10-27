@@ -11,11 +11,11 @@ export default async function SettingsPage({ params }: { params: Promise<{ proje
       <div>
         <h2 className="text-sm font-medium text-muted">API keys</h2>
         {keys.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-border bg-surface px-5 py-10 text-center text-sm text-muted">
+          <div className="mt-4 rounded-data border border-rule bg-surface px-5 py-10 text-center text-sm text-muted">
             No API keys yet. Generate one to start sending traces with the SDK.
           </div>
         ) : (
-          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+          <div className="mt-4 overflow-hidden rounded-data border border-rule bg-surface">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted">

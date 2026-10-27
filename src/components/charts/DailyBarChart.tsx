@@ -89,7 +89,7 @@ export function DailyBarChart({ data, color = "var(--viz-blue-450)" }: { data: D
 
       {hoverIndex !== null && (
         <div
-          className="pointer-events-none absolute rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs shadow-sm"
+          className="pointer-events-none absolute rounded-overlay border border-border bg-surface px-2.5 py-1.5 text-xs shadow-sm"
           style={{
             left: `${((hoverIndex + 0.5) / data.length) * 100}%`,
             top: 0,

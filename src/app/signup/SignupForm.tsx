@@ -11,30 +11,61 @@ export function SignupForm() {
   const [state, formAction, pending] = useActionState(signupAction, initialState);
 
   return (
-    <form action={formAction} className="w-full max-w-sm rounded-xl border border-border bg-surface p-6">
-      <h1 className="text-lg font-semibold tracking-tight">Create your account</h1>
+    <form action={formAction}>
+      <h1 className="text-2xl font-semibold tracking-[-0.02em]">Create your account</h1>
+      <p className="mt-1 text-sm text-muted">You can create projects and API keys right after.</p>
 
-      <label className="mt-4 block text-xs font-medium text-muted">Name</label>
-      <input name="name" className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+      <label htmlFor="name" className="mt-6 block text-sm font-medium">
+        Name <span className="font-normal text-muted">(optional)</span>
+      </label>
+      <input id="name" name="name" autoComplete="name" className="input mt-1.5" />
 
-      <label className="mt-3 block text-xs font-medium text-muted">Email</label>
-      <input name="email" type="email" required autoFocus className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+      <label htmlFor="email" className="mt-4 block text-sm font-medium">
+        Email
+      </label>
+      <input
+        id="email"
+        name="email"
+        type="email"
+        required
+        autoFocus
+        autoComplete="username"
+        aria-describedby={state.error ? "signup-error" : undefined}
+        className="input mt-1.5"
+      />
 
-      <label className="mt-3 block text-xs font-medium text-muted">Password (8+ characters)</label>
-      <input name="password" type="password" required minLength={8} className="mt-1 w-full rounded-lg border border-border bg-canvas px-2.5 py-1.5 text-sm outline-none focus:border-accent" />
+      <label htmlFor="password" className="mt-4 block text-sm font-medium">
+        Password
+      </label>
+      <input
+        id="password"
+        name="password"
+        type="password"
+        required
+        minLength={8}
+        autoComplete="new-password"
+        aria-describedby="password-hint"
+        className="input mt-1.5"
+      />
+      <p id="password-hint" className="mt-1 text-xs text-muted">
+        At least 8 characters.
+      </p>
 
-      {state.error && <p className="reveal mt-2 text-xs text-red-500">{state.error}</p>}
+      {state.error && (
+        <p id="signup-error" role="alert" className="reveal mt-3 text-sm text-fault">
+          {state.error}
+        </p>
+      )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="pressable mt-4 w-full rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90 disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn-primary pressable mt-6 w-full">
         {pending ? "Creating account…" : "Create account"}
       </button>
 
-      <p className="mt-4 text-center text-xs text-muted">
-        Already have an account? <Link href="/login" className="text-accent hover:underline">Sign in</Link>
+      <p className="mt-6 text-sm text-muted">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-ink underline underline-offset-4 hover:text-accent">
+          Sign in
+        </Link>
       </p>
     </form>
   );

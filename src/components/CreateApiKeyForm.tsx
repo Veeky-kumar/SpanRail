@@ -10,7 +10,7 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-data border border-rule bg-surface p-4">
       <h3 className="text-sm font-medium">Create API key</h3>
       <p className="mt-1 text-xs text-muted">Used by the SDK to send traces and manage prompts/datasets.</p>
 
@@ -18,14 +18,14 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
         <button
           type="submit"
           disabled={pending}
-          className="pressable rounded-lg bg-accent px-3 py-2 text-sm font-medium text-white transition-colors duration-150 hover:opacity-90 disabled:opacity-60"
+          className="btn-primary pressable"
         >
           {pending ? "Generating…" : "Generate new key"}
         </button>
       </form>
 
       {state.secretKey && (
-        <div className="reveal mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
+        <div className="reveal mt-4 rounded-data border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
           <p className="font-medium text-amber-600">Save this now — the secret key cannot be shown again.</p>
           <div className="mt-2 space-y-1 font-mono">
             <div>
@@ -40,7 +40,7 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      {state.error && <p className="reveal mt-2 text-xs text-red-500">{state.error}</p>}
+      {state.error && <p className="reveal mt-2 text-xs text-fault">{state.error}</p>}
     </div>
   );
 }
