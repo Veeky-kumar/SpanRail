@@ -1,4 +1,7 @@
+import { AuthShell } from "@/components/AuthShell";
 import { LoginForm } from "./LoginForm";
+
+export const metadata = { title: "Sign in" };
 
 export default async function LoginPage({
   searchParams,
@@ -8,8 +11,8 @@ export default async function LoginPage({
   const { callbackUrl } = await searchParams;
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <AuthShell>
       <LoginForm callbackUrl={callbackUrl ?? "/"} />
-    </main>
+    </AuthShell>
   );
 }

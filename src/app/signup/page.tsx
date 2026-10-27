@@ -1,9 +1,12 @@
+import { AuthShell } from "@/components/AuthShell";
 import { SignupForm } from "./SignupForm";
+
+export const metadata = { title: "Create account" };
 
 export default function SignupPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center px-6">
+    <AuthShell>
       <SignupForm />
-    </main>
+    </AuthShell>
   );
 }

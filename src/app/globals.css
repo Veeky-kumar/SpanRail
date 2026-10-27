@@ -30,7 +30,7 @@
   color-scheme: light;
 }
 
-:root[data-theme="dark"] {
+[data-theme="dark"] {
   --canvas: 15 20 27;
   --surface: 21 27 35;
   --border: 31 40 51;
@@ -149,7 +149,7 @@ body {
   --viz-status-critical: #d03b3b;
   --viz-success: #006300;
 }
-:root[data-theme="dark"] .viz-root {
+[data-theme="dark"] .viz-root {
   color-scheme: dark;
   --viz-surface: #1a1a19;
   --viz-text-primary: #ffffff;
@@ -196,6 +196,19 @@ body {
   }
   .input {
     @apply w-full rounded-data border border-rule bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 placeholder:text-muted focus:border-accent focus:ring-1 focus:ring-accent;
+  }
+  /* Display type (apple-design): tracking tightens as size grows, leading follows. */
+  .display {
+    @apply font-semibold;
+    font-size: clamp(2rem, 4.2vw, 3.25rem);
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+  }
+  .display-xl {
+    @apply font-semibold;
+    font-size: clamp(2.5rem, 6vw, 4.5rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
   }
   /* Soft translucent overlay (apple-design materials): blurred, with a lit top edge. A solid
      fallback is used when the user asks for less transparency. */
