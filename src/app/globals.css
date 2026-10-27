@@ -3,12 +3,22 @@
 @tailwind utilities;
 
 :root {
-  --canvas: 250 250 249;
-  --surface: 255 255 255;
-  --border: 228 228 226;
-  --ink: 28 28 26;
-  --muted: 120 118 114;
-  --accent: 79 70 229;
+  --canvas: 242 244 246;
+  --surface: 251 252 253;
+  --border: 221 227 233;
+  --rule: 201 209 218;
+  --ink: 14 27 44;
+  --muted: 91 104 120;
+  --accent: 29 79 145;
+  --fault: 194 59 46;
+
+  /* Time ramp: ONE hue, light to strong. A phase keeps its step whichever other phases are
+     present, so a colour always means the same part of the network round trip. */
+  --t1: 183 207 239;
+  --t2: 134 173 224;
+  --t3: 85 137 203;
+  --t4: 47 100 168;
+  --t5: 29 79 145;
 
   /* Strong easing tokens (built-in CSS easings are too weak for deliberate motion) —
      see emil-design-eng skill. Shared here so .pressable/.reveal/etc. don't each hand-
@@ -19,12 +29,20 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: 16 16 15;
-    --surface: 24 24 23;
-    --border: 42 42 40;
-    --ink: 237 237 234;
-    --muted: 150 148 144;
-    --accent: 129 140 248;
+    --canvas: 15 20 27;
+    --surface: 21 27 35;
+    --border: 31 40 51;
+    --rule: 43 54 68;
+    --ink: 230 236 243;
+    --muted: 154 167 182;
+    --accent: 127 168 224;
+    --fault: 229 115 106;
+
+    --t1: 42 69 104;
+    --t2: 54 89 138;
+    --t3: 74 118 179;
+    --t4: 108 151 208;
+    --t5: 155 188 232;
   }
 }
 
