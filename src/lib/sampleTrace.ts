@@ -10,3 +10,13 @@ export const SAMPLE_GATEWAY_METADATA = {
     timingMs: { dns: 44.3, connect: 0.5, tls: 21.2, ttfb: 267, total: 374 },
   },
 };
+
+// The same call on a reused keep-alive connection: no DNS, connect or TLS phase exists.
+export const SAMPLE_REUSED_METADATA = {
+  gateway: {
+    status: 200,
+    connReused: true,
+    streaming: false,
+    timingMs: { ttfb: 201, total: 308 },
+  },
+};
