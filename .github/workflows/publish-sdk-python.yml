@@ -1,0 +1,27 @@
+name: publish-sdk-python
+
+# Publishes tracewell-py to PyPI when a tag named sdk-py-vX.Y.Z is pushed. Uses PyPI trusted
+# publishing (OIDC), so no API token is stored in GitHub. The trusted publisher must be configured
+# on PyPI first (project tracewell-py, this repository, workflow publish-sdk-python.yml).
+on:
+  push:
+    tags: ["sdk-py-v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install build && python -m build sdk-python
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk-python/dist

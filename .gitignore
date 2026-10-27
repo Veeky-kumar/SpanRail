@@ -7,3 +7,8 @@ dist/
 *.log
 coverage/
 *.tsbuildinfo
+
+sdk-python/dist/
+__pycache__/
+*.egg-info/
+.pytest_cache/
