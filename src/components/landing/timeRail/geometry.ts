@@ -23,7 +23,7 @@ import {
   type Plane,
   type Point3,
 } from "../../iso/iso-kit";
-import { DIAL_FROM, DIAL_SPAN, K, SEGS, X0 } from "./rail";
+import { DIAL_FROM, DIAL_SPAN, X0, type RailModel } from "./rail";
 import {
   ARM_H,
   ARM_Z,
@@ -121,22 +121,38 @@ export const RAIL_ART = {
 };
 
 const RULER_TOP = RULER_H;
-const TICKS = topTicks(X0, X0 + 400 * K, 10 * K, 5, RULER.y + 0.6, RULER_TOP, [2, 4.2], P);
 
+/** The ruler bar itself: the same for every call. */
 export const RULER_ART = {
   bar: solid(RULER, 0, RULER_H, 4, 0.6),
-  base: onTop([[X0 - 3, RULER.y + 0.6], [X0 + 400 * K + 3, RULER.y + 0.6]], RULER_TOP, P),
-  minor: TICKS.minor,
-  major: TICKS.major,
   zero: lineOnTop([X0, RULER.y + 0.6], [X0, RULER.y + RULER.d - 1.2], RULER_TOP, P),
   screws: [RAIL_X0 + 6, RAIL_X1 - 6].map((x) => at([x, RULER.y + RULER.d - 2.2, RULER_TOP])),
 };
+
+/**
+ * The graduations for one call: a major tick every `tickMs` (a round number of ms for this call's
+ * size), four minor ticks between, from zero to the end of the ruler.
+ */
+export function rulerOf(model: RailModel) {
+  const end = X0 + model.spanMs * model.k;
+  const minorStep = (model.tickMs / 5) * model.k;
+  const ticks = topTicks(X0, end, minorStep, 5, RULER.y + 0.6, RULER_TOP, [2, 4.2], P);
+  return {
+    base: onTop([[X0 - 3, RULER.y + 0.6], [end + 3, RULER.y + 0.6]], RULER_TOP, P),
+    minor: ticks.minor,
+    major: ticks.major,
+  };
+}
 
 // ---------------------------------------------------------------- phase blocks (the bed)
 const SEG_Y = BED_Y;
 export const BED_ART = {
   floor: solid({ x: RAIL_X0 + 3, y: BED_Y - 3, w: RAIL_X1 - RAIL_X0 - 6, d: BED_D + 6, r: 1 }, 0, 0.8, 2),
-  segs: SEGS.map((seg) => {
+};
+
+/** One block per phase that happened, as long as the phase was (widened only to stay visible). */
+export function segmentsOf(model: RailModel) {
+  return model.segs.map((seg) => {
     const plan: Plan = { x: seg.x0 + 0.25, y: SEG_Y, w: Math.max(seg.w - 0.5, 0.9), d: BED_D, r: Math.min(1.4, seg.w / 3) };
     const mid = seg.x0 + seg.w / 2;
     return {
@@ -145,8 +161,8 @@ export const BED_ART = {
       groove: seg.w > 12 ? planOutline(insetPlan(plan, 2.2), SEG_H, P, 3) : "",
       screws: seg.w > 8 ? [at([mid, SEG_Y + 3.6, SEG_H]), at([mid, SEG_Y + BED_D - 3.6, SEG_H])] : [],
     };
-  }),
-};
+  });
+}
 
 // ---------------------------------------------------------------- the carriage (moves along x)
 const BUSH_PLANS: Plan[] = [-10, 10].flatMap((x) => [RAIL_A_Y, RAIL_B_Y].map((y) => ({ x: x - BUSH_W / 2, y: y - BUSH_D / 2, w: BUSH_W, d: BUSH_D, r: 2 })));
@@ -221,7 +237,6 @@ export const SENSOR_ART = {
 const [DX, DY] = DIAL;
 const STAND: Plan = { x: DX - 20, y: DY - 18, w: 40, d: 36, r: 3 };
 const DIAL_TICKS = radialTicks(DX, DY, DIAL_R - 2.6, DIAL_COUNT, 5, DIAL_TOP, [1.4, 2.8], P, DIAL_FROM, DIAL_SPAN);
-const OUTER = DIAL_R - 2.4;
 
 export const DIAL_ART = {
   stand: solid(STAND, 0, DIAL_Z, 4, 0.6),
@@ -244,13 +259,6 @@ export const DIAL_ART = {
   lug: solid({ x: DX - DIAL_R - 3.2, y: DY - 3, w: 4, d: 6, r: 1.2 }, DIAL_Z + 1.5, 5, 3),
   label: topMatrix([DX, DY + 7.2], DIAL_TOP, P, "x"),
 };
-
-/** The needle: rebuilt each frame (the only per-frame geometry on the client). */
-export function needlePath(angle: number): string {
-  const tip: Plane = [DX + Math.sin(angle) * (OUTER - 1.2), DY - Math.cos(angle) * (OUTER - 1.2)];
-  const tail: Plane = [DX - Math.sin(angle) * 3.4, DY + Math.cos(angle) * 3.4];
-  return lineOnTop(tail, tip, DIAL_TOP + 0.2, P);
-}
 
 // ---------------------------------------------------------------- the logger box: Tracewell
 const SLOT_PLANS: Plan[] = [0, 1, 2].map((row) => ({ x: LOGGER.x + 6, y: LOGGER.y + 20 + row * 4.2, w: 24, d: 2, r: 1 }));

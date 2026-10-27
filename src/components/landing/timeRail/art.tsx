@@ -1,8 +1,8 @@
 import * as React from "react";
 import { Dots, FaceText, Line, Solid } from "../../iso/react/draw";
-import { BASE_ART, BED_ART, CARRIAGE_ART, DIAL_ART, GATEWAY_ART, LOGGER_ART, RAIL_ART, RULER_ART, SENSOR_ART } from "./geometry";
+import { BASE_ART, BED_ART, CARRIAGE_ART, DIAL_ART, GATEWAY_ART, LOGGER_ART, RAIL_ART, RULER_ART, SENSOR_ART, rulerOf, segmentsOf } from "./geometry";
 import { TimeRailLive } from "./live";
-import { SETUP_KEYS } from "./rail";
+import { SETUP_KEYS, readoutOf, type RailModel } from "./rail";
 
 // Painter's order, back to front, bottom to top: base, then the gateway behind, the logger, the rails,
 // the bed of phase blocks, the ruler, the dial, and last the two moving groups (carriage, then sensor).
@@ -82,19 +82,20 @@ const BED_FLOOR = (
   </g>
 );
 
-const segment = (key: string) => {
-  const seg = BED_ART.segs.find((s) => s.key === key)!;
-  return (
-    <g key={key} className="tr-phase" data-phase={key}>
+function segments(model: RailModel) {
+  const all = segmentsOf(model);
+  const one = (seg: (typeof all)[number]) => (
+    <g key={seg.key} className="tr-phase" data-phase={seg.key}>
       <Solid paths={seg.body} tone="mid" crease="faint" />
       {seg.groove ? <Line d={seg.groove} tone="faint" /> : null}
       {seg.screws.length ? <Dots points={seg.screws} size={0.4} tone="mid" /> : null}
     </g>
   );
-};
-
-const SETUP = <g key="setup">{SETUP_KEYS.map(segment)}</g>;
-const LATER = <g key="later">{["wait", "transfer"].map(segment)}</g>;
+  return {
+    setup: <g key="setup">{all.filter((s) => SETUP_KEYS.includes(s.key)).map(one)}</g>,
+    later: <g key="later">{all.filter((s) => !SETUP_KEYS.includes(s.key)).map(one)}</g>,
+  };
+}
 
 const RAIL_FRONT = (
   <g key="rail-front">
@@ -108,18 +109,21 @@ const RAIL_FRONT = (
   </g>
 );
 
-const RULER = (
-  <g key="ruler">
-    <Solid paths={RULER_ART.bar} tone="lo" crease="faint" />
-    <Line d={RULER_ART.base} tone="faint" />
-    <Line d={RULER_ART.minor} tone="lo" />
-    <Line d={RULER_ART.major} tone="mid" />
-    <Line d={RULER_ART.zero} tone="hi" />
-    <Dots points={RULER_ART.screws} size={0.45} tone="mid" />
-  </g>
-);
+function ruler(model: RailModel) {
+  const ticks = rulerOf(model);
+  return (
+    <g key="ruler">
+      <Solid paths={RULER_ART.bar} tone="lo" crease="faint" />
+      <Line d={ticks.base} tone="faint" />
+      <Line d={ticks.minor} tone="lo" />
+      <Line d={ticks.major} tone="mid" />
+      <Line d={RULER_ART.zero} tone="hi" />
+      <Dots points={RULER_ART.screws} size={0.45} tone="mid" />
+    </g>
+  );
+}
 
-const DIAL = (
+const dial = (unit: string) => (
   <g key="dial">
     <Solid paths={DIAL_ART.stand} tone="lo" crease="faint" />
     <Dots points={DIAL_ART.standScrews} size={0.45} tone="mid" />
@@ -134,7 +138,7 @@ const DIAL = (
     <Line d={DIAL_ART.minor} tone="lo" />
     <Line d={DIAL_ART.major} tone="mid" />
     <FaceText transform={DIAL_ART.label} size={2.6} tone="lo" anchor="middle">
-      ms
+      {unit}
     </FaceText>
   </g>
 );
@@ -182,24 +186,28 @@ const SENSOR = (
   </g>
 );
 
-const LABEL =
-  "A measuring bench for one LLM call, with time laid out along its length. A carriage, the request, rides two guide rails over five blocks end to end, one for each phase of the round trip: DNS lookup, TCP connect, TLS handshake, the provider's wait and the response transfer. A ruler in milliseconds runs along the front and the carriage points at it. A sensor on the gateway's beam follows the carriage, a dial gauge reads the elapsed milliseconds, and a lamp on the logger box lights once the call has been reported to Tracewell. On a reused connection the three setup blocks sink out of the way.";
+const label = (model: RailModel) =>
+  `A measuring bench for one LLM call that took ${readoutOf(model.totalFresh, model.totalFresh).split(" of ")[1]}, with time laid out along its length. A carriage, the request, rides two guide rails over ${model.segs.length} blocks end to end, one for each phase of the round trip that happened: DNS lookup, TCP connect, TLS handshake, the provider's wait and the response transfer. A ruler in ${model.unit === "s" ? "seconds" : "milliseconds"} runs along the front and the carriage points at it. A sensor on the gateway's beam follows the carriage, a dial gauge reads the elapsed time, and a lamp on the logger box lights once the call has been reported to Tracewell.`;
 
-export function TimeRailArt() {
+export function TimeRailArt({ model, fixedStep, slideIn }: { model: RailModel; fixedStep?: number; slideIn?: boolean }) {
+  const { setup, later } = segments(model);
   return (
     <TimeRailLive
-      label={LABEL}
+      model={model}
+      fixedStep={fixedStep}
+      slideIn={slideIn}
+      label={label(model)}
       base={BASE}
       gateway={GATEWAY}
       logger={LOGGER}
       lamp={LAMP}
       rails={RAILS}
       bedFloor={BED_FLOOR}
-      setup={SETUP}
-      later={LATER}
+      setup={setup}
+      later={later}
       railFront={RAIL_FRONT}
-      ruler={RULER}
-      dial={DIAL}
+      ruler={ruler(model)}
+      dial={dial(model.unit)}
       hub={HUB}
       carriage={CARRIAGE}
       sensor={SENSOR}

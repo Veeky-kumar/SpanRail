@@ -2,8 +2,8 @@
 // Pure data and rules so the order, the skipped stages and the sums are unit-tested; the React
 // component only draws what this returns. Every statement below describes what the gateway
 // really does (gateway/README.md, gateway/internal/nettrace, gateway/internal/report).
-import { parseGatewayTiming, type TimingPhaseKey } from "@/lib/gatewayTiming";
-import { SAMPLE_GATEWAY_METADATA, SAMPLE_REUSED_METADATA } from "@/lib/sampleTrace";
+import type { GatewayTiming, TimingPhaseKey } from "@/lib/gatewayTiming";
+import { SAMPLE_TIMING } from "@/lib/sampleTrace";
 
 export type StageKey = "request" | "dns" | "connect" | "tls" | "wait" | "transfer" | "report";
 
@@ -124,22 +124,29 @@ export function prevStep(step: number, reused: boolean): number {
   return i < 0 ? 0 : i;
 }
 
-/** What is done, active, upcoming or skipped when the reader is at `step`. */
-export function journeyState(step: number, reused: boolean): JourneyState {
+/** The phases a reused keep-alive connection does not need. */
+export const SETUP_PHASES: TimingPhaseKey[] = ["dns", "connect", "tls"];
+
+/**
+ * What is done, active, upcoming or skipped when the reader is at `step`. `timing` is the call being
+ * explained (the sample by default). On a reused connection the setup phases are left out and the
+ * total shrinks by their time, which is how the same call looks without them.
+ */
+export function journeyState(step: number, reused: boolean, timing: GatewayTiming = SAMPLE_TIMING): JourneyState {
   const at = Math.min(Math.max(Math.trunc(step), 0), LAST);
-  const timing = parseGatewayTiming(reused ? SAMPLE_REUSED_METADATA : SAMPLE_GATEWAY_METADATA);
-  if (!timing) throw new Error("sample timing metadata is invalid");
+  const setupMs = reused ? timing.phases.filter((p) => SETUP_PHASES.includes(p.key)).reduce((a, p) => a + p.ms, 0) : 0;
+  const used = reused ? timing.phases.filter((p) => !SETUP_PHASES.includes(p.key)) : timing.phases;
 
   const stages = STAGES.map((s, i) => ({
     key: s.key,
     status: (skipped(i, reused) ? "skipped" : i < at ? "done" : i === at ? "active" : "upcoming") as StageStatus,
   }));
 
-  const phases = timing.phases.map((p) => {
+  const phases = used.map((p) => {
     const index = STAGES.findIndex((s) => s.phase === p.key);
     const status: PhaseStatus = index < at ? "done" : index === at ? "active" : "upcoming";
     return { key: p.key, label: p.label, ms: p.ms, status };
   });
 
-  return { stages, phases, totalMs: timing.totalMs };
+  return { stages, phases, totalMs: timing.totalMs - setupMs };
 }
