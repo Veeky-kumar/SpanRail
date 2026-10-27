@@ -33,6 +33,14 @@ model User {
   name         String?
   createdAt    DateTime @default(now())
 
+  // Where the signup came from, captured once at account creation (see src/lib/attribution.ts). Only a
+  // referring host, utm tags and a two-letter country are kept: never a path, a query string or an IP.
+  signupReferrer    String?
+  signupUtmSource   String?
+  signupUtmMedium   String?
+  signupUtmCampaign String?
+  signupCountry     String?
+
   memberships ProjectMember[]
 }
 
@@ -54,14 +62,14 @@ model ProjectMember {
 }
 
 model ApiKey {
-  id                 String    @id @default(cuid())
-  projectId          String
-  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  publicKey          String    @unique
-  hashedSecretKey    String
-  secretKeyPreview   String
-  createdAt          DateTime  @default(now())
-  expiresAt          DateTime?
+  id               String    @id @default(cuid())
+  projectId        String
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  publicKey        String    @unique
+  hashedSecretKey  String
+  secretKeyPreview String
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime?
 
   @@index([projectId])
 }
@@ -101,29 +109,29 @@ enum ObservationLevel {
 // the root observation (parentObservationId IS NULL) plus everything reachable from it
 // via traceId. See ARCHITECTURE.md "Core model: derived trace, not stored trace".
 model Observation {
-  id                   String            @id
-  projectId            String
-  project              Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  traceId              String
-  parentObservationId  String?
-  type                 ObservationType   @default(SPAN)
-  name                 String?
-  startTime            DateTime?
-  endTime              DateTime?
-  level                ObservationLevel  @default(DEFAULT)
-  statusMessage        String?
+  id                  String           @id
+  projectId           String
+  project             Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  traceId             String
+  parentObservationId String?
+  type                ObservationType  @default(SPAN)
+  name                String?
+  startTime           DateTime?
+  endTime             DateTime?
+  level               ObservationLevel @default(DEFAULT)
+  statusMessage       String?
 
   input    Json?
   output   Json?
   metadata Json?
 
-  model              String?
-  modelParameters    Json?
+  model                String?
+  modelParameters      Json?
   providedUsageDetails Json?
   usageDetails         Json?
   providedCostDetails  Json?
   costDetails          Json?
-  totalCost            Decimal?         @db.Decimal(12, 6)
+  totalCost            Decimal? @db.Decimal(12, 6)
 
   // Only meaningful on the root observation of a trace; read via the root when
   // synthesizing trace-level info for the UI.
@@ -254,17 +262,17 @@ model DatasetRun {
 // later edit to the dataset item doesn't retroactively change what a past run is judged
 // against (see ARCHITECTURE.md, "Evaluation").
 model DatasetRunItem {
-  id             String      @id @default(cuid())
-  projectId      String
-  datasetRunId   String
-  datasetRun     DatasetRun  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
-  datasetItemId  String
-  datasetItem    DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
-  traceId        String
-  observationId  String?
-  inputSnapshot  Json
+  id                     String      @id @default(cuid())
+  projectId              String
+  datasetRunId           String
+  datasetRun             DatasetRun  @relation(fields: [datasetRunId], references: [id], onDelete: Cascade)
+  datasetItemId          String
+  datasetItem            DatasetItem @relation(fields: [datasetItemId], references: [id], onDelete: Cascade)
+  traceId                String
+  observationId          String?
+  inputSnapshot          Json
   expectedOutputSnapshot Json?
-  createdAt      DateTime    @default(now())
+  createdAt              DateTime    @default(now())
 
   @@unique([datasetRunId, datasetItemId])
   @@index([projectId, datasetRunId])

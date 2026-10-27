@@ -112,6 +112,23 @@ Runnable, fuller examples:
 SPANRAIL_PUBLIC_KEY=pk-tw-... SPANRAIL_SECRET_KEY=sk-tw-... npx tsx examples/simple-agent.ts
 ```
 
+## Analytics and growth (optional)
+
+Spanrail has no telemetry: a self-hosted install never reports anything to anyone. If you run a public instance
+(a landing page people sign up from), two optional features help you see who is arriving:
+
+- **Umami** ([umami.is](https://umami.is), privacy-friendly, no cookies). Set `UMAMI_SCRIPT_URL` (your Umami
+  script, for example `https://cloud.umami.is/script.js`) and `UMAMI_WEBSITE_ID`. The tracker loads only on the
+  landing, sign-in and sign-up pages, never inside the signed-in app, and respects Do Not Track. With either
+  variable unset, nothing is loaded.
+- **Signups and funnel** at `/admin/growth`, for the addresses listed in `ADMIN_EMAILS` (comma separated; anyone else
+  gets a 404). It counts accounts per day, how far people get (project, API key, trace, gateway call), and where
+  they came from. At sign-up the app records the referring site, any `utm_source`/`utm_medium`/`utm_campaign`
+  tags and a two-letter country (from a header such as `CF-IPCountry` when your host's edge network adds one). It
+  never stores a path, a query string or an IP address, and the sign-up form says so. A first-party cookie
+  (`sr_src`, 30 days) carries the source from the first page to the sign-up and is skipped when the browser sends
+  Do Not Track.
+
 ## Prompt management
 
 ```bash

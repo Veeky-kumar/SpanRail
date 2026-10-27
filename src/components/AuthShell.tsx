@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { IntakeFigure } from "@/components/auth/intake/figure";
+import { Analytics } from "@/components/Analytics";
+import { SourceCapture } from "@/components/SourceCapture";
 
 /**
  * Split screen for sign in / sign up. The left panel is always dark (a data-theme scope), so the
@@ -11,6 +13,8 @@ import { IntakeFigure } from "@/components/auth/intake/figure";
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,4fr)]">
+      <Analytics />
+      <SourceCapture />
       <section data-theme="dark" className="hidden flex-col justify-between bg-canvas p-12 text-ink lg:flex">
         <Link href="/" aria-label="Spanrail home" className="w-fit">
           <Logo />

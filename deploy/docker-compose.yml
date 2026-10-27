@@ -58,7 +58,13 @@ services:
   web:
     image: ghcr.io/veeky-kumar/spanrail-web:${SPANRAIL_VERSION:-latest}
     restart: unless-stopped
-    environment: *app-env
+    environment:
+      <<: *app-env
+      # Optional. Addresses (comma separated) that may open /admin/growth.
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      # Optional. Umami analytics on the public pages only; off unless both are set.
+      UMAMI_SCRIPT_URL: ${UMAMI_SCRIPT_URL:-}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

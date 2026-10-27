@@ -61,6 +61,10 @@ export function SignupForm() {
         {pending ? "Creating account…" : "Create account"}
       </button>
 
+      <p className="mt-4 text-xs text-muted">
+        We note which link brought you here and your country, never your IP address.
+      </p>
+
       <p className="mt-6 text-sm text-muted">
         Already have an account?{" "}
         <Link href="/login" className="font-medium text-ink underline underline-offset-4 hover:text-accent">

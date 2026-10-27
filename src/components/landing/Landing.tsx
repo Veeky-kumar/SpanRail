@@ -5,6 +5,8 @@ import { LifeOfACall } from "@/components/landing/LifeOfACall";
 import { OnThisPage, type PageSection } from "@/components/landing/OnThisPage";
 import { TracePreview } from "@/components/landing/TracePreview";
 import { TimeRailFigure } from "@/components/landing/timeRail/figure";
+import { Analytics } from "@/components/Analytics";
+import { SourceCapture } from "@/components/SourceCapture";
 
 const SECTIONS: PageSection[] = [
   { id: "overview", label: "Overview" },
@@ -127,6 +129,8 @@ function Heading({ id, children, lead }: { id: string; children: React.ReactNode
 export function Landing() {
   return (
     <div className="min-h-screen">
+      <Analytics />
+      <SourceCapture />
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
         <Link href="/" aria-label="Spanrail home">
           <Logo />

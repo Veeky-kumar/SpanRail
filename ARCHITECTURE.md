@@ -185,6 +185,24 @@ checked with a validator script rather than by eye. Verified against real ingest
 Scaling note: these queries read `Observation` directly with no rollup table. That is fine at MVP volume;
 the first remedy is a materialised daily rollup, not a rewrite.
 
+## Analytics and growth
+
+Analytics is opt-in and lives only on public pages. `src/components/Analytics.tsx` renders the Umami script when
+both `UMAMI_SCRIPT_URL` and `UMAMI_WEBSITE_ID` are valid (`src/lib/umami.ts`: HTTPS only, a UUID site id), and calls
+`connection()` so the environment is read per request, not baked into the image at build time. It is mounted on the
+landing page and the sign-in and sign-up pages, never on a signed-in screen.
+
+Signup attribution is first party. `SourceCapture` (client) stores the referring host and utm tags in a 30-day
+`sr_src` cookie on the visitor's first page, unless Do Not Track is set. The sign-up action re-validates the cookie
+(it is user-controlled: trimmed, control characters removed, 80 characters at most) and stores five nullable columns
+on `User`, together with a coarse country read from `cf-ipcountry` or `x-vercel-ip-country`. No IP address, path or
+query string is kept.
+
+`/admin/growth` reads that data and the existing project, key and observation tables. Access is the addresses in
+`ADMIN_EMAILS`; everyone else, including a signed-in non-admin, gets a 404. The funnel (signed up, project, API key,
+trace, gateway call) is derived from rows that exist, like the home page's checklist, so it cannot drift from what
+actually happened. Self-hosted installs report nothing to anyone.
+
 ## The Go gateway (`gateway/`)
 
 A separate service (own `go.mod`, Go 1.27.3, standard library plus `prometheus/client_golang`; it shares no
