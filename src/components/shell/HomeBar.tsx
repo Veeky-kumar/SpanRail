@@ -2,9 +2,12 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { logoutAction } from "@/app/actions";
+import { isAdminEmail } from "@/lib/admin";
 
 /** Top bar for screens that are not inside a project (the projects home). */
 export function HomeBar({ email, wide = false }: { email: string; wide?: boolean }) {
+  // Only people listed in ADMIN_EMAILS see the link; /admin/growth itself returns a 404 to everyone else.
+  const admin = isAdminEmail(email, process.env.ADMIN_EMAILS);
   return (
     <header className="border-b border-rule bg-surface">
       <div className={`mx-auto flex h-14 ${wide ? "max-w-6xl" : "max-w-4xl"} items-center justify-between gap-4 px-4 sm:px-6`}>
@@ -13,6 +16,11 @@ export function HomeBar({ email, wide = false }: { email: string; wide?: boolean
         </Link>
         <div className="flex items-center gap-3">
           <ThemeToggle />
+          {admin && (
+            <Link href="/admin/growth" className="pressable rounded-data px-1.5 py-1 text-xs text-muted hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+              Growth
+            </Link>
+          )}
           <span className="hidden max-w-[16rem] truncate text-xs text-muted sm:inline" title={email}>
             {email}
           </span>
