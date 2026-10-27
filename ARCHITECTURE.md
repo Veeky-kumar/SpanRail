@@ -187,7 +187,7 @@ the first remedy is a materialised daily rollup, not a rewrite.
 
 ## The Go gateway (`gateway/`)
 
-A separate service (own `go.mod`, Go 1.27.2, standard library plus `prometheus/client_golang`; it shares no
+A separate service (own `go.mod`, Go 1.27.3, standard library plus `prometheus/client_golang`; it shares no
 code or build with the Node app). It sits in front of an OpenAI-compatible provider API as a reverse proxy
 and reports each call to Spanrail as a generation with network timing: DNS, connect, TLS, time to first
 byte and transfer. It talks to Spanrail **only through the public ingestion API** (Basic auth with the
@@ -226,7 +226,7 @@ parser; a scripted end-to-end run (15 assertions) against Postgres, Redis, the w
 passthrough that fails if the proxy buffers (mutation-checked); a real SIGTERM flush in a hardened
 container; load tests with zero errors; three code reviews and an independent security review whose
 findings were each fixed with a test; and a clean `govulncheck` (it found 9 standard-library
-vulnerabilities in Go 1.27.0, so 1.27.2 is required). CI (`.github/workflows/gateway.yml`: gofmt, vet,
+vulnerabilities in Go 1.27.0, so 1.27.2 was the first safe version, and a later disclosure (GO-2026-6809, `crypto/x509`) raised the requirement to 1.27.3). CI (`.github/workflows/gateway.yml`: gofmt, vet,
 race tests, build, `govulncheck`, Docker build) runs green on GitHub.
 
 Not verified, or known gaps: timing against a real HTTPS provider or HTTP/2 (only local servers were

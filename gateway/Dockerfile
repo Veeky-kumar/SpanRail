@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 
 # ---- build: compile a static binary ----
-# 1.27.2 or newer is required (go.mod): earlier 1.27.x releases have known net/http, HTTP/2 and
+# 1.27.3 or newer is required (go.mod): earlier 1.27.x releases have known net/http, HTTP/2 and
 # crypto/tls vulnerabilities that govulncheck flags. The image sets GOTOOLCHAIN=local, so an
 # older compiler fails the build instead of silently producing a vulnerable binary.
 # The build stage always runs on the build machine's own architecture and cross-compiles, so a
 # multi-arch image does not need to emulate a second CPU to compile.
-FROM --platform=$BUILDPLATFORM golang:1.27.2-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src

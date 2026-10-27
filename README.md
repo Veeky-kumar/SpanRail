@@ -123,7 +123,7 @@ your app --> spanrail-gateway (Go) --> LLM provider
                    +--(async, batched)--> Spanrail  POST /api/public/ingestion
 ```
 
-It needs **Go 1.27.2+** to build natively (the Docker image builds it for you). Quick start, from the repo
+It needs **Go 1.27.3+** to build natively (the Docker image builds it for you). Quick start, from the repo
 root, with the key pair that `npm run db:seed` printed:
 
 ```bash

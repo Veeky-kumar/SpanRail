@@ -176,8 +176,8 @@ bash scripts/bench.sh    # overhead and throughput measurement
   gateway restarts; terminate TLS in front of it if you need rotation without restarts.
 * **Environment proxies.** The upstream HTTP client honours `HTTPS_PROXY`/`HTTP_PROXY`; if set in the
   container environment, provider traffic (with your keys) goes through that proxy.
-* **Go version.** Build with Go 1.27.2 or newer. Earlier 1.27.x releases have standard-library
-  vulnerabilities that `govulncheck` reports for this code; `go.mod` requires 1.27.2.
+* **Go version.** Build with Go 1.27.3 or newer. Earlier 1.27.x releases have standard-library
+  vulnerabilities that `govulncheck` reports for this code; `go.mod` requires 1.27.3.
 * **One upstream and one Spanrail project per instance.** Run several instances for several.
 * **At-most-once, in memory.** The report queue is not persisted. A crash or `kill -9` loses queued
   events, and a batch Spanrail rejects or cannot accept after all retries is lost (counted in
