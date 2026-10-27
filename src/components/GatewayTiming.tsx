@@ -39,8 +39,11 @@ export function GatewayTiming({ metadata }: { metadata: unknown }) {
     <section>
       <div className="flex items-baseline justify-between gap-3">
         <h4 className="text-sm font-semibold">Time budget</h4>
-        <span className="text-xs tabular-nums text-muted">
-          <span className="font-medium text-ink">{fmt(timing.totalMs)}</span> at the gateway, scale in {unit}
+        <span className="flex gap-3 text-xs tabular-nums text-muted">
+          <span>
+            <span className="font-medium text-ink">{fmt(timing.totalMs)}</span> at the gateway
+          </span>
+          <span>Scale in {unit}</span>
         </span>
       </div>
 
