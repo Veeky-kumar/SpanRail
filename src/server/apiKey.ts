@@ -15,7 +15,7 @@ export function generateApiKeyPair(): {
 
 // The secret half is a high-entropy random token, so a fast salted SHA-256 is enough
 // (no brute-force risk from a stolen hash) and avoids paying bcrypt's per-request cost
-// on every ingestion call. Same reasoning Langfuse's own fast-hash scheme uses.
+// on every ingestion call.
 export function hashSecretKey(secretKey: string): string {
   const salt = process.env.API_KEY_SALT;
   if (!salt) {

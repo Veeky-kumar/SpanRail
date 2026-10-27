@@ -9,8 +9,7 @@ export interface AuthenticatedProject {
 /**
  * Validates the `Authorization: Basic base64(publicKey:secretKey)` header used by the
  * SDK for ingestion. No caching layer yet (MVP) — the next thing to add once ingestion
- * throughput makes a per-request Postgres lookup a bottleneck (same reasoning Langfuse's
- * Redis-cached authenticator exists, deferred here for the thin vertical slice).
+ * throughput makes a per-request Postgres lookup a bottleneck.
  */
 export async function authenticateApiKey(authorizationHeader: string | null): Promise<AuthenticatedProject | null> {
   if (!authorizationHeader?.startsWith("Basic ")) return null;

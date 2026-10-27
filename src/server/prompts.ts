@@ -16,8 +16,8 @@ export interface CreatePromptVersionInput {
 
 /**
  * Creates a new immutable version and atomically moves any of the requested labels off
- * whichever older version currently holds them. See ARCHITECTURE.md / the prompt
- * research notes — this is the same mechanism verified in Langfuse's prompt versioning.
+ * whichever older version currently holds them. See ARCHITECTURE.md, "Prompt
+ * management", for why labels move inside the same transaction as the insert.
  */
 export async function createPromptVersion(input: CreatePromptVersionInput) {
   const labels = Array.from(new Set([...(input.labels ?? []), LATEST_LABEL]));

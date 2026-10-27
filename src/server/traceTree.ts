@@ -8,8 +8,7 @@ export interface TraceTreeNode {
 
 /**
  * Builds a nested tree from a flat list of observations belonging to one trace.
- * Adapted from the tree-building rules verified in Langfuse's `ordering.ts`
- * (see ARCHITECTURE.md): a node whose parent is missing or unresolved within this
+ * Rules (see ARCHITECTURE.md): a node whose parent is missing or unresolved within this
  * trace is promoted to root rather than dropped, siblings are ordered by start time,
  * and any observation unreachable from a root (malformed/cyclic data) is still
  * surfaced rather than silently lost.
