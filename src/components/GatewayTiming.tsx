@@ -4,7 +4,7 @@ import { niceTicks, phaseLayout, slowestPhase } from "@/lib/timeAxis";
 // One hue, one fixed step per phase (tokens --t1..--t5 in globals.css), so a colour always
 // means the same part of the round trip. Colour is never the only carrier: the slowest phase
 // is named on the ruler and every phase is listed in the table with its value and share.
-const PHASE_BG: Record<TimingPhaseKey, string> = {
+export const PHASE_BG: Record<TimingPhaseKey, string> = {
   dns: "bg-t1",
   connect: "bg-t2",
   tls: "bg-t3",

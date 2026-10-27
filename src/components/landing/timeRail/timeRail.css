@@ -1,0 +1,61 @@
+/* Figure-specific styles. Every colour is a token: the phase colours are the app's time ramp. */
+.tr .iso-svg {
+  overflow: visible;
+}
+
+.tr-phase[data-phase="dns"] .iso-top {
+  fill: rgb(var(--t1));
+}
+.tr-phase[data-phase="connect"] .iso-top {
+  fill: rgb(var(--t2));
+}
+.tr-phase[data-phase="tls"] .iso-top {
+  fill: rgb(var(--t3));
+}
+.tr-phase[data-phase="wait"] .iso-top {
+  fill: rgb(var(--t4));
+}
+.tr-phase[data-phase="transfer"] .iso-top {
+  fill: rgb(var(--t5));
+}
+
+.tr-needle {
+  stroke-width: 1.1px;
+}
+
+.tr-shadow {
+  filter: blur(4px);
+  opacity: 0.8;
+  transform: translateY(1px);
+}
+
+.tr-lamp .iso-top {
+  transition: fill 300ms var(--anatomy-ease);
+}
+.tr-lamp[data-on] .iso-top {
+  fill: rgb(var(--t4));
+}
+.tr-lamp[data-on] .iso-edge {
+  stroke: var(--anatomy-lit);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tr-lamp .iso-top {
+    transition: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .iso-plate .tr .iso-svg {
+    width: 118%;
+    margin: -4% -9% -3%;
+  }
+  .tr {
+    overflow: hidden;
+  }
+}
+
+/* Inside the explainer the card sits close to the controls above and the time budget below. */
+.tr-wrap .iso-figure {
+  margin: 16px 0 0;
+}
