@@ -217,6 +217,15 @@ body {
       animation: none;
     }
   }
+  /* A real ruler as the section divider: a tick every 8px, a longer one every 64px. */
+  .ruler-band {
+    height: 10px;
+    background-image: repeating-linear-gradient(90deg, rgb(var(--rule)) 0 1px, transparent 1px 8px),
+      repeating-linear-gradient(90deg, rgb(var(--muted)) 0 1px, transparent 1px 64px);
+    background-size: 100% 5px, 100% 10px;
+    background-position: left bottom, left bottom;
+    background-repeat: repeat-x;
+  }
   /* Display type (apple-design): tracking tightens as size grows, leading follows. */
   .display {
     @apply font-semibold;
