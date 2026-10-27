@@ -27,7 +27,7 @@ export default async function DatasetRunDetailPage({
       </Link>
       <h2 className="mt-1 text-lg font-semibold tracking-tight">{run.name}</h2>
 
-      <div className="mt-4 overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="mt-4 overflow-hidden rounded-data border border-rule bg-surface">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-muted">
@@ -59,7 +59,7 @@ export default async function DatasetRunDetailPage({
                         <span
                           key={s.id}
                           className={`rounded-full border px-2 py-0.5 text-xs ${
-                            s.value === 1 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-red-500/30 bg-red-500/10 text-red-600"
+                            s.value === 1 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600" : "border-fault/30 bg-fault/10 text-fault"
                           }`}
                         >
                           {s.name}

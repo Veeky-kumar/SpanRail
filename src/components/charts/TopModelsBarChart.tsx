@@ -71,7 +71,7 @@ export function TopModelsBarChart({ data }: { data: ModelUsage[] }) {
 
       {hoverIndex !== null && (
         <div
-          className="pointer-events-none absolute rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs shadow-sm"
+          className="pointer-events-none absolute rounded-overlay border border-border bg-surface px-2.5 py-1.5 text-xs shadow-sm"
           style={{
             left: `${(LABEL_WIDTH / WIDTH) * 100}%`,
             top: `${((hoverIndex * ROW_HEIGHT) / height) * 100}%`,

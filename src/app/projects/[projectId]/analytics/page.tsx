@@ -35,14 +35,15 @@ export default async function AnalyticsPage({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-muted">Analytics</h2>
-        <div className="flex gap-1 rounded-lg border border-border bg-surface p-0.5">
+        <h2 className="text-base font-semibold tracking-tight">Analytics</h2>
+        <div role="group" aria-label="Date range" className="flex gap-0.5 rounded-data border border-rule bg-canvas p-0.5">
           {PRESETS.map((p) => (
             <Link
               key={p}
               href={`/projects/${projectId}/analytics?days=${p}`}
-              className={`pressable rounded-md px-2.5 py-1 text-xs transition-colors duration-150 ${
-                p === days ? "bg-accent font-medium text-white" : "text-muted hover:text-ink"
+              aria-current={p === days ? "true" : undefined}
+              className={`pressable rounded-[2px] px-3 py-1.5 text-xs tabular-nums transition-colors duration-150 ${
+                p === days ? "bg-surface font-medium text-ink shadow-sm" : "text-muted hover:text-ink"
               }`}
             >
               {p}d
@@ -51,7 +52,7 @@ export default async function AnalyticsPage({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-px overflow-hidden rounded-data border border-rule bg-rule lg:grid-cols-4">
         <StatTile label={`Traces (${days}d)`} value={formatCompactNumber(stats.traceCount)} />
         <StatTile
           label="Error rate"
