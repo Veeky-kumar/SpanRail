@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { resolveTheme, themeCookie, type ThemeChoice } from "@/lib/theme";
 
 const OPTIONS: { value: ThemeChoice; label: string }[] = [
@@ -11,9 +11,12 @@ const OPTIONS: { value: ThemeChoice; label: string }[] = [
 
 /** Segmented Light / Dark / System control. Applies instantly and remembers the choice in a cookie. */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<ThemeChoice>(() =>
-    typeof document === "undefined" ? "light" : resolveTheme(document.documentElement.dataset.theme),
-  );
+  // Start from "light" on both server and first client render so hydration matches, then adopt the
+  // theme the server put on <html> (read from the cookie) right after mount.
+  const [theme, setTheme] = useState<ThemeChoice>("light");
+  useEffect(() => {
+    setTheme(resolveTheme(document.documentElement.dataset.theme));
+  }, []);
 
   function choose(next: ThemeChoice) {
     setTheme(next);
