@@ -4,6 +4,10 @@ Self-hostable LLM observability, evaluation, and prompt management. See
 [ARCHITECTURE.md](./ARCHITECTURE.md) for how it fits together, the design decisions
 and why, and a full accounting of known gaps.
 
+![A walkthrough of Spanrail: the landing page, sign up, a project, an API key, a first trace, then the Overview and Gateway tabs](docs/spanrail-flow.gif)
+
+From the landing page to a first trace. The dashboards in the clip show demo data.
+
 ## Status
 
 Working MVP: tracing (nested spans/generations, errors, cost/usage), prompt versioning,
