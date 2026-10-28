@@ -135,6 +135,23 @@ If the app is reachable from the internet, set `SIGNUPS_DISABLED=true` once your
 still sign in and the sign-up page says registration is closed. Sign-in, sign-up and ingestion are rate limited
 (details in ARCHITECTURE.md), and `GET /api/health` answers `{"status":"ok"}` (or 503) for an uptime monitor.
 
+## Backups
+
+`.github/workflows/backup.yml` dumps the database every night, encrypts the dump and keeps it for 14 days as a
+workflow artifact. It does nothing until you add two repository secrets: `BACKUP_DATABASE_URL` (the database's
+external connection string) and `BACKUP_PASSPHRASE` (a long random passphrase you also keep somewhere safe). The dump
+is encrypted because artifacts of a public repository can be downloaded by any signed-in GitHub user.
+
+To restore, download the artifact, then:
+
+```bash
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in spanrail-YYYY-MM-DD.dump.enc -out spanrail.dump
+pg_restore --no-owner --no-privileges --clean --if-exists -d "$DATABASE_URL" spanrail.dump
+```
+
+Try a restore into an empty database once, before you need it. Dumps are made with Postgres 17 tools; restoring one
+into an older server prints a single harmless warning about `transaction_timeout` and restores everything else.
+
 ## Prompt management
 
 ```bash

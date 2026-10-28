@@ -1,0 +1,66 @@
+name: backup
+
+# A nightly, encrypted dump of the production database. Do not skip the encryption: this repository is public, and a
+# workflow artifact of a public repository can be downloaded by any signed-in GitHub user. The dump holds password
+# hashes and every trace, so it is encrypted here with a passphrase only you hold, and it is useless without it.
+#
+# Set two repository secrets (Settings > Secrets and variables > Actions) and the job starts working:
+#   BACKUP_DATABASE_URL  the database's EXTERNAL connection string (postgresql://...)
+#   BACKUP_PASSPHRASE    a long random passphrase; keep a copy somewhere safe, as losing it makes every backup unreadable
+# Until both exist the job says so and finishes without failing.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dump:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check configuration
+        id: cfg
+        env:
+          URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$PASS" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Backups are not set up yet. Add the BACKUP_DATABASE_URL and BACKUP_PASSPHRASE repository secrets."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # postgres:17 so pg_dump is never older than the server it reads from.
+      - name: Dump
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          PGURL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          docker run --rm -e PGURL postgres:17-alpine sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' > spanrail.dump
+          test -s spanrail.dump
+          # A dump that cannot be listed cannot be restored, so find out now rather than on the bad day.
+          docker run --rm -i postgres:17-alpine pg_restore --list < spanrail.dump > /dev/null
+          ls -l spanrail.dump
+
+      - name: Encrypt
+        if: steps.cfg.outputs.configured == 'true'
+        env:
+          PASS: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -euo pipefail
+          openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt -pass env:PASS -in spanrail.dump -out "spanrail-$(date -u +%F).dump.enc"
+          rm spanrail.dump
+          ls -l ./*.enc
+
+      - name: Keep for 14 days
+        if: steps.cfg.outputs.configured == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: spanrail-db-backup
+          path: "*.dump.enc"
+          retention-days: 14
+          if-no-files-found: error
