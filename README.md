@@ -7,7 +7,7 @@
 Self-hosted traces, evaluations and prompts, with DNS, connect, TLS and first-byte timing for every call that passes through the gateway.
 
 [![PyPI](https://img.shields.io/pypi/v/spanrail?label=pypi&color=3775a9)](https://pypi.org/project/spanrail/)
-[![Python](https://img.shields.io/pypi/pyversions/spanrail?color=3775a9)](https://pypi.org/project/spanrail/)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3775a9)](https://pypi.org/project/spanrail/)
 [![web](https://img.shields.io/github/actions/workflow/status/Veeky-kumar/SpanRail/web.yml?branch=main&label=web)](https://github.com/Veeky-kumar/SpanRail/actions/workflows/web.yml)
 [![License: MIT](https://img.shields.io/github/license/Veeky-kumar/SpanRail?color=f1c40f)](./LICENSE)
 
