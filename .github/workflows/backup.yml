@@ -33,17 +33,17 @@ jobs:
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
 
-      # postgres:17 so pg_dump is never older than the server it reads from.
+      # postgres:18 so pg_dump is never older than the server it reads from (Neon runs 18; bump this when the server does).
       - name: Dump
         if: steps.cfg.outputs.configured == 'true'
         env:
           PGURL: ${{ secrets.BACKUP_DATABASE_URL }}
         run: |
           set -euo pipefail
-          docker run --rm -e PGURL postgres:17-alpine sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' > spanrail.dump
+          docker run --rm -e PGURL postgres:18-alpine sh -c 'pg_dump --format=custom --no-owner --no-privileges "$PGURL"' > spanrail.dump
           test -s spanrail.dump
           # A dump that cannot be listed cannot be restored, so find out now rather than on the bad day.
-          docker run --rm -i postgres:17-alpine pg_restore --list < spanrail.dump > /dev/null
+          docker run --rm -i postgres:18-alpine pg_restore --list < spanrail.dump > /dev/null
           ls -l spanrail.dump
 
       - name: Encrypt
