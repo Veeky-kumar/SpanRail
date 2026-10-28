@@ -27,7 +27,7 @@ export function CreateApiKeyForm({ projectId }: { projectId: string }) {
       {state.secretKey && (
         <div className="reveal mt-4 rounded-data border border-amber-500/30 bg-amber-500/10 p-3 text-xs">
           <p className="font-medium text-amber-600">Save this now — the secret key cannot be shown again.</p>
-          <div className="mt-2 space-y-1 font-mono">
+          <div className="mt-2 space-y-1 break-all font-mono">
             <div>
               <span className="text-muted">SPANRAIL_PUBLIC_KEY=</span>
               {state.publicKey}
