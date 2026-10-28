@@ -1,4 +1,23 @@
+<div align="center">
+
 # Spanrail
+
+**See where every LLM call spends its time.**
+
+Self-hosted traces, evaluations and prompts, with DNS, connect, TLS and first-byte timing for every call that passes through the gateway.
+
+[![PyPI](https://img.shields.io/pypi/v/spanrail?label=pypi&color=3775a9)](https://pypi.org/project/spanrail/)
+[![Python](https://img.shields.io/pypi/pyversions/spanrail?color=3775a9)](https://pypi.org/project/spanrail/)
+[![web](https://img.shields.io/github/actions/workflow/status/Veeky-kumar/SpanRail/web.yml?branch=main&label=web)](https://github.com/Veeky-kumar/SpanRail/actions/workflows/web.yml)
+[![License: MIT](https://img.shields.io/github/license/Veeky-kumar/SpanRail?color=f1c40f)](./LICENSE)
+
+[Website](https://spanrail.onrender.com) · [Architecture](./ARCHITECTURE.md) · [Python SDK](https://pypi.org/project/spanrail/)
+
+[Install](#install-one-command) · [Quick start](#quick-start-local-development) · [Send a trace](#sending-a-trace-sdk) · [Gateway](#go-gateway-optional) · [Backups](#backups) · [Known limitations](#known-limitations)
+
+`curl -fsSL https://raw.githubusercontent.com/Veeky-kumar/SpanRail/main/deploy/install.sh | sh`
+
+</div>
 
 Self-hostable LLM observability, evaluation, and prompt management. See
 [ARCHITECTURE.md](./ARCHITECTURE.md) for how it fits together, the design decisions
