@@ -163,11 +163,25 @@ export function TimeBudget({
           {flow.map((f) => (
             <g key={`n-${f.key}`}>
               <rect x={640} y={f.y} width={14} height={f.h} rx={3} fill={FILL[f.key]} />
-              <text x={666} y={f.mid - 2} fontSize={13} fontWeight={600} fill="rgb(var(--ink))">{LABELS[f.key]}</text>
-              <text x={666} y={f.mid + 13} fontSize={11} fill="rgb(var(--muted))">{ms(f.ms)} · {Math.round((f.ms / span) * 100)}%</text>
+              <g className="max-sm:hidden">
+                <text x={666} y={f.mid - 2} fontSize={13} fontWeight={600} fill="rgb(var(--ink))">{LABELS[f.key]}</text>
+                <text x={666} y={f.mid + 13} fontSize={11} fill="rgb(var(--muted))">{ms(f.ms)} · {Math.round((f.ms / span) * 100)}%</text>
+              </g>
             </g>
           ))}
         </svg>
+        {/* The labels inside the drawing shrink to about 5 px on a phone, so the same numbers are listed here. */}
+        <ul className="mt-3 space-y-1.5 text-sm sm:hidden">
+          {parts.map((p) => (
+            <li key={p.key} className="flex items-center gap-2">
+              <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: FILL[p.key] }} />
+              <span className="font-medium">{LABELS[p.key]}</span>
+              <span className="ml-auto tabular-nums text-muted">
+                {ms(p.ms)} · {Math.round((p.ms / span) * 100)}%
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       <section className="mt-4 rounded-data border border-rule bg-surface p-4" aria-labelledby="scrub-title">
