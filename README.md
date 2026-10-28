@@ -149,8 +149,9 @@ openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -in spanrail-YYYY-MM-DD.dump.en
 pg_restore --no-owner --no-privileges --clean --if-exists -d "$DATABASE_URL" spanrail.dump
 ```
 
-Try a restore into an empty database once, before you need it. Dumps are made with Postgres 17 tools; restoring one
-into an older server prints a single harmless warning about `transaction_timeout` and restores everything else.
+Try a restore into an empty database once, before you need it. Dumps are made with Postgres 18 tools, so restore them with
+a `pg_restore` of version 18 or newer (an older one refuses the file). Restoring into an older server can print
+warnings about settings it does not know; read them before trusting the result.
 
 ## Prompt management
 
