@@ -16,6 +16,11 @@ describe("isPublicPath", () => {
     for (const p of ["/", "/login", "/signup", "/icon.svg"]) expect(isPublicPath(p)).toBe(true);
   });
 
+  it("lets crawlers and link-preview bots read robots.txt, the sitemap and the preview image", () => {
+    for (const p of ["/robots.txt", "/sitemap.xml", "/og.png"]) expect(isPublicPath(p)).toBe(true);
+    expect(isPublicPath("/sitemap.xml/x")).toBe(false);
+  });
+
   it("keeps everything else behind sign in", () => {
     for (const p of ["/projects", "/projects/p1", "/projects/p1/traces/t1", "/api/other", "/settings", "/loginx", "/signup/extra"]) {
       expect(isPublicPath(p)).toBe(false);

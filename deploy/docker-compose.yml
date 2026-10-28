@@ -63,6 +63,9 @@ services:
       # Optional. Addresses (comma separated) that may open /admin/growth.
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       SIGNUPS_DISABLED: ${SIGNUPS_DISABLED:-}
+      # Optional. The public address. Set it to let search engines index the landing page and to get link previews;
+      # unset, the site tells crawlers to stay away.
+      SITE_URL: ${SITE_URL:-}
       # Optional. Umami analytics on the public pages only; off unless both are set.
       UMAMI_SCRIPT_URL: ${UMAMI_SCRIPT_URL:-}
       UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}

@@ -170,6 +170,7 @@ If your instance is reachable from the internet:
 
 - **Close signups** once your team has accounts: set `SIGNUPS_DISABLED=true`. Existing users still sign in, and the sign-up page says registration is closed.
 - **Rate limits** cover sign-in, sign-up and ingestion (details in [ARCHITECTURE.md](./ARCHITECTURE.md)).
+- **Search and link previews:** set `SITE_URL` to your public address (for example `https://spanrail.example.com`). The landing page then gets a canonical link, a link-preview card, a sitemap and structured data. Leave it unset on a private install: the site then asks search engines not to index it.
 - **Health check:** `GET /api/health` answers `{"status":"ok"}`, or 503 when the database is unreachable. Point an uptime monitor at it.
 
 ### Backups

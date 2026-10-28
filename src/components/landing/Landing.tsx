@@ -7,6 +7,7 @@ import { TracePreview } from "@/components/landing/TracePreview";
 import { TimeRailFigure } from "@/components/landing/timeRail/figure";
 import { Analytics } from "@/components/Analytics";
 import { SourceCapture } from "@/components/SourceCapture";
+import { siteUrl } from "@/lib/site";
 
 const SECTIONS: PageSection[] = [
   { id: "overview", label: "Overview" },
@@ -126,9 +127,33 @@ function Heading({ id, children, lead }: { id: string; children: React.ReactNode
 }
 
 /** Public page for signed-out visitors at "/". Signed-in users get the projects home instead. */
+// Structured data for search engines. Facts only, all from this repository; no ratings or review counts.
+function structuredData(base: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "Spanrail",
+    url: base,
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Linux, macOS, Windows (with Docker)",
+    description: "Self-hosted LLM observability: traces, costs, evals and prompts, plus a gateway that times every call.",
+    license: "https://opensource.org/licenses/MIT",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    sameAs: ["https://github.com/Veeky-kumar/SpanRail", "https://pypi.org/project/spanrail/"],
+  };
+}
+
 export function Landing() {
+  const base = siteUrl();
   return (
     <div className="min-h-screen">
+      {base && (
+        <script
+          type="application/ld+json"
+          // The object is built from constants and the validated site origin, never from visitor input.
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData(base)).replace(/</g, "\\u003c") }}
+        />
+      )}
       <Analytics />
       <SourceCapture />
       <header className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
