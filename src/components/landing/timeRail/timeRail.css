@@ -89,3 +89,10 @@
   outline: 2px solid var(--anatomy-hi);
   outline-offset: 2px;
 }
+/* On a phone the hint sits bottom left and the readout bottom right, so the button goes above them. */
+@media (max-width: 560px) {
+  .tr[data-still] .tr-replay,
+  .tr-replay:focus-visible {
+    bottom: 48px;
+  }
+}

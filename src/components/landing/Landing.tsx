@@ -108,7 +108,7 @@ const ATTACH = `curl localhost:8080/v1/chat/completions \\
 
 function Code({ children, label }: { children: string; label: string }) {
   return (
-    <figure>
+    <figure className="min-w-0">
       <figcaption className="mb-1.5 text-xs text-muted">{label}</figcaption>
       <pre className="overflow-x-auto rounded-data border border-rule bg-canvas p-4 font-mono text-xs leading-relaxed">{children}</pre>
     </figure>

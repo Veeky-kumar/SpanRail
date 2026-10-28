@@ -199,6 +199,7 @@ export function ModelWorkbench({
             Model comparison
           </h3>
           <p className="mt-0.5 text-xs text-muted">Select a heading to sort. Speeds are how long the generation itself ran.</p>
+          <p className="mt-1 text-xs text-muted sm:hidden">Swipe sideways for more columns.</p>
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[34rem] text-sm">
               <thead>
