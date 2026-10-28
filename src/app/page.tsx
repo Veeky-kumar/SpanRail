@@ -3,6 +3,7 @@ import { auth } from "@/server/auth";
 import { listUserProjects } from "@/server/projects";
 import { getHomeData } from "@/server/home";
 import { formatRelativeTime } from "@/lib/format";
+import { siteUrl } from "@/lib/site";
 import { nextStepOf, setupSteps } from "@/lib/setupProgress";
 import { HomeBar } from "@/components/shell/HomeBar";
 import { HomeRail } from "@/components/home/HomeRail";
@@ -15,7 +16,9 @@ import { createProjectAction } from "./actions";
 // Signed-out visitors see the landing page at this URL, so only signed-in views get the "Projects" title.
 export async function generateMetadata() {
   const session = await auth();
-  return session?.user ? { title: "Projects" } : {};
+  if (session?.user) return { title: "Projects" };
+  // The landing page names itself as the canonical address, so a copy or a tracking-tagged link is not a second page.
+  return siteUrl() ? { alternates: { canonical: "/" } } : {};
 }
 
 const SECTIONS: PageSection[] = [
